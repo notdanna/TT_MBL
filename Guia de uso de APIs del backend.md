@@ -241,7 +241,44 @@ La arquitectura móvil es **Offline-First**: la aplicación trabaja primordialme
 
 ---
 
-## 5. Catálogo de Árboles y Zonas de Follaje
+## 5. Inferencia y Diagnóstico en la Nube (Modo Online)
+
+### `POST /api/v1/analisis/clasificar`
+* **Propósito en App:** Diagnosticar una fotografía de corteza utilizando el modelo de alta precisión (**EfficientNet-B3 Float32 completo**) en la nube cuando el dispositivo cuenta con conexión a Internet activa (`Modo Online`). Si el dispositivo no tiene red (`Modo Offline`), la app utiliza inferencia local con `light_classifier.tflite`.
+* **Autenticación:** Pública / Opcional con Token Bearer.
+* **Headers:**
+  * Opción recomendada: `Content-Type: multipart/form-data`
+  * Opción alternativa: `Content-Type: application/json`
+* **Parámetros de Entrada:**
+  * **Caso 1 (`multipart/form-data`):**
+    * Campo `imagen` (o `file`): Archivo de imagen binario (`image/jpeg` o `image/png`).
+  * **Caso 2 (`application/json`):**
+    ```json
+    {
+      "imagenBase64": "/9j/4AAQSkZJRgABAQEASABIAAD/4gHYSUNDX1BST0ZJTEUAA..."
+    }
+    ```
+* **Respuesta Exitosa (`200 OK`):**
+```json
+{
+  "resultado": "sano",                     // String: "sano" o "infestado"
+  "confianza": 0.9019,                     // Double: Nivel de certeza del diagnóstico (0.0 a 1.0)
+  "probabilidadInfestado": 0.0981,         // Double: Probabilidad bruta de infestación (0.0 a 1.0)
+  "umbral": 0.5,                           // Double: Umbral de decisión aplicado
+  "tiempoInferenciaMs": 210,               // Integer: Tiempo de ejecución de inferencia en ms
+  "dimensionesOriginales": "3072x4080",    // String: Resolución de la imagen original analizada
+  "modelo": "classifier_full (EfficientNet-B3 Full Precision)", // String: Identificador del modelo
+  "tipoInferencia": "ONLINE_CLOUD_FULL_PRECISION",              // String: Modalidad de ejecución
+  "version": "1.0.0"                       // String: Versión del servicio de IA
+}
+```
+* **Respuestas de Error:**
+  * `400 Bad Request`: `{"error": "No se recibió ninguna imagen válida en la petición"}`.
+  * `500 Internal Server Error`: `{"error": "Error en inferencia: <detalle>"}`.
+
+---
+
+## 6. Catálogo de Árboles y Zonas de Follaje
 
 ### `GET /api/v1/arboles`
 * **Propósito en App:** Descargar o actualizar el catálogo de árboles en la base SQLite local (`CU-M09`).
@@ -315,7 +352,7 @@ La arquitectura móvil es **Offline-First**: la aplicación trabaja primordialme
 
 ---
 
-## 6. Jornada Actual, Historial y Alertas NOM-019
+## 7. Jornada Actual, Historial y Alertas NOM-019
 
 ### `GET /api/v1/analisis/jornada`
 * **Propósito en App:** Resumen de capturas realizadas en el día en curso (00:00 - 23:59) (`RF-12`, `RN-30`, `RN-31`, `CU-M05`).
@@ -417,7 +454,7 @@ La arquitectura móvil es **Offline-First**: la aplicación trabaja primordialme
 
 ---
 
-## 7. Tabla Resumen para Retrofit (Android)
+## 8. Tabla Resumen para Retrofit (Android)
 
 | Endpoint | Método | Auth | DTO Request | DTO Response |
 | :--- | :---: | :---: | :--- | :--- |
@@ -432,6 +469,7 @@ La arquitectura móvil es **Offline-First**: la aplicación trabaja primordialme
 | `/api/v1/evidencias/{file}` | `GET` | No | — | `ResponseBody` |
 | `/api/v1/modelos/latest` | `GET` | No | — | `ModeloDTO` |
 | `/api/v1/modelos/descargar/{file}` | `GET` | No | — | `ResponseBody` (Stream) |
+| `/api/v1/analisis/clasificar` | `POST` | No/Opc | `MultipartBody.Part` (o `ClasificarRequestDTO`) | `ClasificarResponseDTO` |
 | `/api/v1/arboles` | `GET` | Sí | — | `List<ArbolDTO>` |
 | `/api/v1/arboles` | `POST` | Sí | `ArbolDTO` | `ArbolDTO` |
 | `/api/v1/arboles/{id}` | `PUT` | Sí | `ArbolDTO` | `ArbolDTO` |
