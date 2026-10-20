@@ -1,0 +1,377 @@
+{
+  "version": 8,
+  "name": "EcoVerde CDMX Offline",
+  "glyphs": "asset://glyphs/{fontstack}/{range}.pbf",
+  "sources": {
+    "protomaps": {
+      "type": "vector",
+      "url": "pmtiles://asset://cdmx.pmtiles"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#E8ECE9"
+      }
+    },
+    {
+      "id": "earth",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "earth",
+      "paint": {
+        "fill-color": "#F1F4F0"
+      }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "landcover",
+      "paint": {
+        "fill-color": "#C8E6C9",
+        "fill-opacity": 0.75
+      }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "landuse",
+      "paint": {
+        "fill-color": "#D7ECD9",
+        "fill-opacity": 0.65
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#90CAF9"
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "buildings",
+      "paint": {
+        "fill-color": "#E0E4E1",
+        "fill-outline-color": "#C9D0CB",
+        "fill-opacity": 0.8
+      }
+    },
+    {
+      "id": "roads-casing",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "paint": {
+        "line-color": "#CFD8DC",
+        "line-width": 3.5
+      }
+    },
+    {
+      "id": "roads",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "paint": {
+        "line-color": "#FFFFFF",
+        "line-width": 2.0
+      }
+    },
+    {
+      "id": "boundaries",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "boundaries",
+      "paint": {
+        "line-color": "#90A4AE",
+        "line-width": 1.0
+      }
+    },
+    {
+      "id": "water-label",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "water",
+      "filter": ["has", "name"],
+      "minzoom": 11,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          11, 10.0,
+          16, 13.0
+        ],
+        "text-letter-spacing": 0.08,
+        "symbol-placement": "point"
+      },
+      "paint": {
+        "text-color": "#1565C0",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "earth-label",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "earth",
+      "filter": ["has", "name"],
+      "minzoom": 10,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, 10.0,
+          15, 13.0
+        ],
+        "text-letter-spacing": 0.05,
+        "symbol-placement": "point"
+      },
+      "paint": {
+        "text-color": "#2E7D32",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "chapultepec-sections-label",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": [
+        "match",
+        ["get", "name"],
+        [
+          "1a. Sección del Bosque de Chapultepec",
+          "2a. Sección del Bosque de Chapultepec",
+          "3a. Sección del Bosque de Chapultepec",
+          "4a. Sección del Bosque de Chapultepec",
+          "Bosque de Chapultepec",
+          "Parque de Chapultepec",
+          "Bosques de Chapultepec",
+          "Chapultepec"
+        ],
+        true,
+        false
+      ],
+      "minzoom": 10,
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, 13.0,
+          13, 15.5,
+          16, 18.0
+        ],
+        "text-letter-spacing": 0.05,
+        "text-max-width": 8,
+        "symbol-placement": "point",
+        "symbol-sort-key": 1,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
+      },
+      "paint": {
+        "text-color": "#2D6A3E",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 3.0
+      }
+    },
+    {
+      "id": "places-country-state",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": [
+        "all",
+        ["match", ["get", "kind"], ["country", "state", "region"], true, false],
+        [
+          "match",
+          ["get", "name"],
+          [
+            "1a. Sección del Bosque de Chapultepec",
+            "2a. Sección del Bosque de Chapultepec",
+            "3a. Sección del Bosque de Chapultepec",
+            "4a. Sección del Bosque de Chapultepec",
+            "Bosque de Chapultepec",
+            "Parque de Chapultepec",
+            "Bosques de Chapultepec",
+            "Chapultepec"
+          ],
+          false,
+          true
+        ]
+      ],
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          5, 11.0,
+          10, 15.0,
+          14, 18.0
+        ],
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.15,
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#37474F",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 2.0
+      }
+    },
+    {
+      "id": "places-locality-county",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": [
+        "all",
+        ["match", ["get", "kind"], ["city", "county", "locality"], true, false],
+        [
+          "match",
+          ["get", "name"],
+          [
+            "1a. Sección del Bosque de Chapultepec",
+            "2a. Sección del Bosque de Chapultepec",
+            "3a. Sección del Bosque de Chapultepec",
+            "4a. Sección del Bosque de Chapultepec",
+            "Bosque de Chapultepec",
+            "Parque de Chapultepec",
+            "Bosques de Chapultepec",
+            "Chapultepec"
+          ],
+          false,
+          true
+        ]
+      ],
+      "minzoom": 8,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          8, 11.0,
+          12, 13.5,
+          16, 16.0
+        ],
+        "text-max-width": 7
+      },
+      "paint": {
+        "text-color": "#212121",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 2.0
+      }
+    },
+    {
+      "id": "places-town-suburb",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": [
+        "all",
+        ["match", ["get", "kind"], ["town", "village", "suburb", "neighbourhood", "neighborhood"], true, false],
+        [
+          "match",
+          ["get", "name"],
+          [
+            "1a. Sección del Bosque de Chapultepec",
+            "2a. Sección del Bosque de Chapultepec",
+            "3a. Sección del Bosque de Chapultepec",
+            "4a. Sección del Bosque de Chapultepec",
+            "Bosque de Chapultepec",
+            "Parque de Chapultepec",
+            "Bosques de Chapultepec",
+            "Chapultepec"
+          ],
+          false,
+          true
+        ]
+      ],
+      "minzoom": 11,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          11, 10.5,
+          14, 13.0,
+          16, 14.5
+        ],
+        "text-max-width": 6
+      },
+      "paint": {
+        "text-color": "#37474F",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.8
+      }
+    },
+    {
+      "id": "places-other",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": [
+        "all",
+        ["match", ["get", "kind"], ["country", "state", "region", "city", "county", "locality", "town", "village", "suburb", "neighbourhood", "neighborhood"], false, true],
+        [
+          "match",
+          ["get", "name"],
+          [
+            "1a. Sección del Bosque de Chapultepec",
+            "2a. Sección del Bosque de Chapultepec",
+            "3a. Sección del Bosque de Chapultepec",
+            "4a. Sección del Bosque de Chapultepec",
+            "Bosque de Chapultepec",
+            "Parque de Chapultepec",
+            "Bosques de Chapultepec",
+            "Chapultepec"
+          ],
+          false,
+          true
+        ]
+      ],
+      "minzoom": 13,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          13, 10.0,
+          16, 12.0
+        ],
+        "text-max-width": 6
+      },
+      "paint": {
+        "text-color": "#546E7A",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5
+      }
+    }
+  ]
+}
