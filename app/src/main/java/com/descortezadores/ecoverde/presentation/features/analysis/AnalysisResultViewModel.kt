@@ -16,7 +16,7 @@ import com.descortezadores.ecoverde.core.common.ExtractedImagePayload
 import com.descortezadores.ecoverde.core.common.ImageMetadataAndLocationHelper
 import com.descortezadores.ecoverde.core.common.SystemMessages
 import com.descortezadores.ecoverde.core.opencv.OpenCvInitializer
-import com.descortezadores.ecoverde.data.classification.TfliteBarkClassifier
+import com.descortezadores.ecoverde.domain.repository.BarkClassificationRepository
 import com.descortezadores.ecoverde.data.segmentation.ImageOverlayGenerator
 import com.descortezadores.ecoverde.data.segmentation.OpenCvColorSegmenter
 import com.descortezadores.ecoverde.data.sync.DeteccionesSyncWorker
@@ -66,7 +66,7 @@ class AnalysisResultViewModel @Inject constructor(
     private val openCvInitializer: OpenCvInitializer,
     private val openCvColorSegmenter: OpenCvColorSegmenter,
     private val imageOverlayGenerator: ImageOverlayGenerator,
-    private val tfliteBarkClassifier: TfliteBarkClassifier,
+    private val barkClassificationRepository: BarkClassificationRepository,
     private val forestMonitoringRepository: ForestMonitoringRepository
 ) : ViewModel() {
 
@@ -87,29 +87,45 @@ class AnalysisResultViewModel @Inject constructor(
                 _uiState.update { it.copy(daySummary = summary) }
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             forestMonitoringRepository.observeAllDetections().collectLatest { records ->
-                _uiState.update { it.copy(allRecords = records) }
-            }
-        }
-        viewModelScope.launch {
-            forestMonitoringRepository.observeTrees().collectLatest { trees ->
-                _uiState.update { state ->
-                    val defaultSelected = state.selectedTreeId ?: trees.firstOrNull()?.idArbol
-                    state.copy(
-                        availableTrees = trees,
-                        selectedTreeId = defaultSelected
+                val trees = _uiState.value.availableTrees
+                val zones = _uiState.value.availableZones
+                val treesProg = AnalysisResultUiState.computeTreeProgressions(trees, records)
+                val zonesProg = AnalysisResultUiState.computeZoneProgressions(zones, records)
+                _uiState.update {
+                    it.copy(
+                        allRecords = records,
+                        treeProgressionList = treesProg,
+                        zoneProgressionList = zonesProg
                     )
                 }
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
+            forestMonitoringRepository.observeTrees().collectLatest { trees ->
+                val records = _uiState.value.allRecords
+                val treesProg = AnalysisResultUiState.computeTreeProgressions(trees, records)
+                _uiState.update { state ->
+                    val defaultSelected = state.selectedTreeId ?: trees.firstOrNull()?.idArbol
+                    state.copy(
+                        availableTrees = trees,
+                        selectedTreeId = defaultSelected,
+                        treeProgressionList = treesProg
+                    )
+                }
+            }
+        }
+        viewModelScope.launch(Dispatchers.Default) {
             forestMonitoringRepository.observeFoliageZones().collectLatest { zones ->
+                val records = _uiState.value.allRecords
+                val zonesProg = AnalysisResultUiState.computeZoneProgressions(zones, records)
                 _uiState.update { state ->
                     val defaultZone = state.selectedZoneId ?: zones.firstOrNull()?.idZona
                     state.copy(
                         availableZones = zones,
-                        selectedZoneId = defaultZone
+                        selectedZoneId = defaultZone,
+                        zoneProgressionList = zonesProg
                     )
                 }
             }
@@ -175,9 +191,14 @@ class AnalysisResultViewModel @Inject constructor(
             it.copy(
                 currentDestination = destination,
                 selectedTreeDetailId = if (destination != EcoVerdeMainDestination.INICIO) null else it.selectedTreeDetailId,
+                selectedZoneDetailId = if (destination != EcoVerdeMainDestination.INICIO) null else it.selectedZoneDetailId,
                 errorMessage = null
             )
         }
+    }
+
+    fun onHomeWorkTabChanged(tab: HomeWorkTab) {
+        _uiState.update { it.copy(homeWorkTab = tab) }
     }
 
     fun onHomeTreeFilterChanged(filter: TreeHealthFilter) {
@@ -191,6 +212,8 @@ class AnalysisResultViewModel @Inject constructor(
                 currentDestination = EcoVerdeMainDestination.INICIO,
                 selectedTreeDetailId = treeId,
                 selectedTreeId = treeId,
+                selectedZoneDetailId = null,
+                homeWorkTab = HomeWorkTab.ARBOLES,
                 fieldObservations = tree?.descripcion ?: "",
                 associationMode = TargetAssociationMode.EXISTENTE,
                 sampleType = SampleType.CORTEZA,
@@ -203,6 +226,27 @@ class AnalysisResultViewModel @Inject constructor(
         _uiState.update { it.copy(selectedTreeDetailId = null) }
     }
 
+    fun openZoneDetailSection(zoneId: String) {
+        val zone = _uiState.value.availableZones.firstOrNull { it.idZona == zoneId }
+        _uiState.update {
+            it.copy(
+                currentDestination = EcoVerdeMainDestination.INICIO,
+                selectedZoneDetailId = zoneId,
+                selectedZoneId = zoneId,
+                selectedTreeDetailId = null,
+                homeWorkTab = HomeWorkTab.ZONAS_FOLLAJE,
+                fieldObservations = zone?.descripcion ?: "",
+                associationMode = TargetAssociationMode.EXISTENTE,
+                sampleType = SampleType.FOLLAJE,
+                errorMessage = null
+            )
+        }
+    }
+
+    fun closeZoneDetailSection() {
+        _uiState.update { it.copy(selectedZoneDetailId = null) }
+    }
+
     fun startNewCaptureForTree(treeId: String) {
         currentAnalysisJob?.cancel()
         overlayRenderJob?.cancel()
@@ -212,6 +256,7 @@ class AnalysisResultViewModel @Inject constructor(
                 associationMode = TargetAssociationMode.EXISTENTE,
                 selectedTreeId = treeId,
                 selectedTreeDetailId = treeId,
+                selectedZoneDetailId = null,
                 currentDestination = EcoVerdeMainDestination.ANALIZAR,
                 wizardStep = WizardStep.CAPTURA,
                 selectedTab = AnalysisResultTab.CLASIFICACION,
@@ -222,7 +267,34 @@ class AnalysisResultViewModel @Inject constructor(
                 chromaticResult = null,
                 overlayOpacityAlpha = 0.0f,
                 isProcessingVision = false,
+                isInspectingHistoricalRecord = false,
                 statusBannerMessage = "Capturando progreso para el árbol seleccionado"
+            )
+        }
+    }
+
+    fun startNewCaptureForZone(zoneId: String) {
+        currentAnalysisJob?.cancel()
+        overlayRenderJob?.cancel()
+        _uiState.update {
+            it.copy(
+                sampleType = SampleType.FOLLAJE,
+                associationMode = TargetAssociationMode.EXISTENTE,
+                selectedZoneId = zoneId,
+                selectedZoneDetailId = zoneId,
+                selectedTreeDetailId = null,
+                currentDestination = EcoVerdeMainDestination.ANALIZAR,
+                wizardStep = WizardStep.CAPTURA,
+                selectedTab = AnalysisResultTab.ANALISIS_COLOR,
+                originalBitmap = null,
+                uncroppedBitmap = null,
+                segmentedOverlayBitmap = null,
+                classificationResult = null,
+                chromaticResult = null,
+                overlayOpacityAlpha = 0.0f,
+                isProcessingVision = false,
+                isInspectingHistoricalRecord = false,
+                statusBannerMessage = "Capturando toma de dosel para la zona seleccionada"
             )
         }
     }
@@ -240,6 +312,8 @@ class AnalysisResultViewModel @Inject constructor(
                 associationMode = if (treeId != null) TargetAssociationMode.EXISTENTE else state.associationMode,
                 selectedTreeId = effectiveTreeId,
                 selectedTreeDetailId = treeId ?: state.selectedTreeDetailId,
+                selectedZoneDetailId = null,
+                isInspectingHistoricalRecord = false,
                 originalBitmap = null,
                 uncroppedBitmap = null,
                 segmentedOverlayBitmap = null,
@@ -305,6 +379,31 @@ class AnalysisResultViewModel @Inject constructor(
             it.copy(
                 selectedMapTree = tree,
                 showMapBottomSheet = tree != null
+            )
+        }
+    }
+
+    fun focusTreeOnMap(tree: TreeRecord) {
+        val lat = tree.latitud ?: return
+        val lon = tree.longitud ?: return
+        _uiState.update {
+            it.copy(
+                currentDestination = EcoVerdeMainDestination.MAPA,
+                focusedMapTreeId = tree.idArbol,
+                showUserLocationOnMap = false,
+                mapTargetCoordinates = Pair(lat, lon),
+                showMapBottomSheet = false
+            )
+        }
+    }
+
+    fun centerOnUserGps() {
+        refreshCurrentDeviceLocation()
+        _uiState.update {
+            it.copy(
+                focusedMapTreeId = null,
+                showUserLocationOnMap = true,
+                mapTargetCoordinates = Pair(it.captureLatitude, it.captureLongitude)
             )
         }
     }
@@ -575,10 +674,10 @@ class AnalysisResultViewModel @Inject constructor(
                 val currentFilter = _uiState.value.selectedCategoryFilter
                 val currentAlpha = _uiState.value.overlayOpacityAlpha
 
-                // Ejecución concurrente de TFLite y OpenCV HSV (PI-13, RN-46)
+                // Inferencia híbrida de IA (Cloud si online, TFLite si offline) concurrente con OpenCV HSV
                 val tfliteDeferred = async {
                     if (effectiveSampleType == SampleType.CORTEZA) {
-                        tfliteBarkClassifier.classifyBitmap(bitmap).getOrNull()
+                        barkClassificationRepository.classifyBark(bitmap).getOrNull()
                     } else {
                         null
                     }
@@ -897,7 +996,7 @@ class AnalysisResultViewModel @Inject constructor(
                 } else {
                     TargetAssociation.FollajeTarget.NewZone(
                         nombreZonaNuevo = state.newZoneName.trim().ifBlank { "Zona Follaje Chapultepec" },
-                        radioMetrosZona = state.newZoneRadiusMeters.toDoubleOrNull() ?: 55.0,
+                        radioMetrosZona = state.newZoneRadiusMeters.toDoubleOrNull() ?: 50.0,
                         descripcion = state.fieldObservations.trim()
                     )
                 }
@@ -919,9 +1018,12 @@ class AnalysisResultViewModel @Inject constructor(
             saveResult.fold(
                 onSuccess = { savedRecord ->
                     DeteccionesSyncWorker.enqueueImmediateSync(appContext)
+                    val isCorteza = state.sampleType == SampleType.CORTEZA
                     val savedTreeId = (savedRecord.targetAssociation as? TargetAssociation.CortezaTarget.ExistingTree)?.idArbol
                         ?: state.selectedTreeId
-                    val savedTreeName = when (val assoc = savedRecord.targetAssociation) {
+                    val savedZoneId = (savedRecord.targetAssociation as? TargetAssociation.FollajeTarget.ExistingZone)?.idZona
+                        ?: state.selectedZoneId
+                    val savedTargetName = when (val assoc = savedRecord.targetAssociation) {
                         is TargetAssociation.CortezaTarget.ExistingTree -> assoc.nombreEspecifico
                         is TargetAssociation.CortezaTarget.NewTree -> assoc.nombreArbolNuevo
                         is TargetAssociation.FollajeTarget.ExistingZone -> assoc.nombreZona
@@ -931,6 +1033,7 @@ class AnalysisResultViewModel @Inject constructor(
                         it.copy(
                             isSavingOffline = false,
                             currentDestination = EcoVerdeMainDestination.INICIO,
+                            homeWorkTab = if (isCorteza) HomeWorkTab.ARBOLES else HomeWorkTab.ZONAS_FOLLAJE,
                             wizardStep = WizardStep.MODALIDAD,
                             originalBitmap = null,
                             uncroppedBitmap = null,
@@ -938,14 +1041,17 @@ class AnalysisResultViewModel @Inject constructor(
                             classificationResult = null,
                             chromaticResult = null,
                             overlayOpacityAlpha = 0.0f,
+                            isInspectingHistoricalRecord = false,
                             associationMode = if (isCorteza && savedTreeId != null) {
                                 TargetAssociationMode.EXISTENTE
                             } else {
                                 it.associationMode
                             },
-                            selectedTreeId = savedTreeId ?: it.selectedTreeId,
-                            selectedTreeDetailId = if (isCorteza) savedTreeId else it.selectedTreeDetailId,
-                            statusBannerMessage = "Registro guardado correctamente en la sección de '$savedTreeName'"
+                            selectedTreeId = if (isCorteza) (savedTreeId ?: it.selectedTreeId) else it.selectedTreeId,
+                            selectedTreeDetailId = if (isCorteza) savedTreeId else null,
+                            selectedZoneId = if (!isCorteza) (savedZoneId ?: it.selectedZoneId) else it.selectedZoneId,
+                            selectedZoneDetailId = if (!isCorteza) savedZoneId else null,
+                            statusBannerMessage = "Registro guardado correctamente en la sección de '$savedTargetName'"
                         )
                     }
                     checkProximityToHotspots()
@@ -1034,7 +1140,7 @@ class AnalysisResultViewModel @Inject constructor(
             confidence = record.confidence,
             rawInfestationProbability = record.rawTfliteProbability,
             isOfflineExecution = true,
-            executionBadgeLabel = "Offline",
+            executionBadgeLabel = "LOCAL",
             visualEvidencesDetected = emptyList(),
             recommendation = recommendation,
             inferenceTimeMs = 0L
@@ -1091,9 +1197,10 @@ class AnalysisResultViewModel @Inject constructor(
                 currentDestination = EcoVerdeMainDestination.ANALIZAR,
                 wizardStep = WizardStep.RESULTADOS,
                 sampleType = record.sampleType,
-                selectedTab = AnalysisResultTab.CLASIFICACION,
+                selectedTab = if (record.sampleType == SampleType.FOLLAJE) AnalysisResultTab.ANALISIS_COLOR else AnalysisResultTab.CLASIFICACION,
                 selectedCategoryFilter = null,
-                overlayOpacityAlpha = 0.0f,
+                overlayOpacityAlpha = if (record.sampleType == SampleType.FOLLAJE) 0.70f else 0.0f,
+                isInspectingHistoricalRecord = true,
                 classificationResult = clf,
                 chromaticResult = chromatic,
                 fieldObservations = record.observaciones ?: "",
@@ -1238,19 +1345,21 @@ class AnalysisResultViewModel @Inject constructor(
             val result = forestMonitoringRepository.deleteTree(treeId)
             result.fold(
                 onSuccess = {
-                    _uiState.update {
-                        val remainingTrees = it.availableTrees.filterNot { t -> t.idArbol == treeId }
-                        val remainingRecords = it.allRecords.filterNot { r ->
-                            when (val assoc = r.targetAssociation) {
-                                is TargetAssociation.CortezaTarget.ExistingTree -> assoc.idArbol == treeId
-                                else -> false
-                            }
+                    val remainingTrees = _uiState.value.availableTrees.filterNot { t -> t.idArbol == treeId }
+                    val remainingRecords = _uiState.value.allRecords.filterNot { r ->
+                        when (val assoc = r.targetAssociation) {
+                            is TargetAssociation.CortezaTarget.ExistingTree -> assoc.idArbol == treeId
+                            else -> false
                         }
+                    }
+                    val treesProg = AnalysisResultUiState.computeTreeProgressions(remainingTrees, remainingRecords)
+                    _uiState.update {
                         it.copy(
                             selectedTreeDetailId = if (it.selectedTreeDetailId == treeId) null else it.selectedTreeDetailId,
                             selectedTreeId = if (it.selectedTreeId == treeId) remainingTrees.firstOrNull()?.idArbol else it.selectedTreeId,
                             availableTrees = remainingTrees,
                             allRecords = remainingRecords,
+                            treeProgressionList = treesProg,
                             statusBannerMessage = "Árbol eliminado correctamente de la base de datos."
                         )
                     }
@@ -1272,13 +1381,15 @@ class AnalysisResultViewModel @Inject constructor(
             val result = forestMonitoringRepository.updateTreeDescription(treeId, newObservations)
             result.fold(
                 onSuccess = { updatedTree ->
+                    val updatedList = _uiState.value.availableTrees.map { t ->
+                        if (t.idArbol == treeId) t.copy(descripcion = newObservations.trim()) else t
+                    }
+                    val treesProg = AnalysisResultUiState.computeTreeProgressions(updatedList, _uiState.value.allRecords)
                     _uiState.update { state ->
-                        val updatedList = state.availableTrees.map { t ->
-                            if (t.idArbol == treeId) t.copy(descripcion = newObservations.trim()) else t
-                        }
                         state.copy(
                             isSavingOffline = false,
                             availableTrees = updatedList,
+                            treeProgressionList = treesProg,
                             fieldObservations = newObservations.trim(),
                             statusBannerMessage = "Observaciones de '${updatedTree.nombreEspecifico}' actualizadas correctamente."
                         )
@@ -1289,6 +1400,85 @@ class AnalysisResultViewModel @Inject constructor(
                         it.copy(
                             isSavingOffline = false,
                             errorMessage = error.message ?: "No se pudieron actualizar las observaciones del árbol."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun deleteZoneSection(zoneId: String) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    errorMessage = null,
+                    statusBannerMessage = null
+                )
+            }
+            val result = forestMonitoringRepository.deleteZonaFollaje(zoneId)
+            result.fold(
+                onSuccess = {
+                    val remainingZones = _uiState.value.availableZones.filterNot { z -> z.idZona == zoneId }
+                    val remainingRecords = _uiState.value.allRecords.filterNot { r ->
+                        when (val assoc = r.targetAssociation) {
+                            is TargetAssociation.FollajeTarget.ExistingZone -> assoc.idZona == zoneId
+                            else -> false
+                        }
+                    }
+                    val zonesProg = AnalysisResultUiState.computeZoneProgressions(remainingZones, remainingRecords)
+                    _uiState.update {
+                        it.copy(
+                            selectedZoneDetailId = if (it.selectedZoneDetailId == zoneId) null else it.selectedZoneDetailId,
+                            selectedZoneId = if (it.selectedZoneId == zoneId) remainingZones.firstOrNull()?.idZona else it.selectedZoneId,
+                            availableZones = remainingZones,
+                            allRecords = remainingRecords,
+                            zoneProgressionList = zonesProg,
+                            statusBannerMessage = "Zona de follaje eliminada correctamente de la base de datos."
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = error.message ?: "No fue posible eliminar la zona de follaje."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun updateZoneObservations(zoneId: String, newObservations: String) {
+        val zone = _uiState.value.availableZones.firstOrNull { it.idZona == zoneId } ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingOffline = true, errorMessage = null) }
+            val result = forestMonitoringRepository.updateZonaFollaje(
+                idZona = zoneId,
+                nombreZona = zone.nombreZona,
+                radioMetros = zone.radioMetros,
+                nuevaDescripcion = newObservations.trim()
+            )
+            result.fold(
+                onSuccess = {
+                    val updatedList = _uiState.value.availableZones.map { z ->
+                        if (z.idZona == zoneId) z.copy(descripcion = newObservations.trim()) else z
+                    }
+                    val zonesProg = AnalysisResultUiState.computeZoneProgressions(updatedList, _uiState.value.allRecords)
+                    _uiState.update { state ->
+                        state.copy(
+                            isSavingOffline = false,
+                            availableZones = updatedList,
+                            zoneProgressionList = zonesProg,
+                            fieldObservations = newObservations.trim(),
+                            statusBannerMessage = "Observaciones de '${zone.nombreZona}' actualizadas correctamente."
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isSavingOffline = false,
+                            errorMessage = error.message ?: "No se pudieron actualizar las observaciones de la zona de follaje."
                         )
                     }
                 }
@@ -1347,7 +1537,7 @@ class AnalysisResultViewModel @Inject constructor(
             confidence = conf,
             rawInfestationProbability = prob,
             isOfflineExecution = true,
-            executionBadgeLabel = "Offline",
+            executionBadgeLabel = "LOCAL",
             visualEvidencesDetected = emptyList(),
             recommendation = recommendation,
             inferenceTimeMs = elapsedMs

@@ -124,6 +124,55 @@ data class TreeProgressionSummary(
 }
 
 /**
+ * Pestaña de trabajo en Inicio: Árboles individuales (Corteza) vs Zonas de Follaje (Dosel).
+ */
+enum class HomeWorkTab(val label: String) {
+    ARBOLES("Árboles (Corteza)"),
+    ZONAS_FOLLAJE("Zonas de Follaje (Dosel)")
+}
+
+/**
+ * Resumen de progreso e historial fitosanitario de una Zona de Follaje (macro área / tomas aéreas).
+ */
+data class FoliageZoneProgressionSummary(
+    val zone: FoliageZoneRecord,
+    val captures: List<SavedDetectionRecord>,
+    val totalCapturas: Int,
+    val healthyCount: Int,
+    val undeterminedCount: Int,
+    val damagedCount: Int,
+    val avgPctSano: Int,
+    val avgPctRegular: Int,
+    val avgPctDanado: Int,
+    val currentDominantSignal: String,
+    val lastCaptureMillis: Long?,
+    val lastCaptureIso: String?
+) {
+    val statusBadgeLabel: String
+        get() = when {
+            totalCapturas == 0 -> "Sin tomas"
+            avgPctDanado >= 35 -> "Necrosis / Dañado"
+            avgPctRegular >= 30 -> "Estrés foliar"
+            else -> "Follaje Sano"
+        }
+
+    val syncStatus: SyncStatus
+        get() = when {
+            captures.any { it.syncStatus == SyncStatus.ERROR } -> SyncStatus.ERROR
+            captures.any { it.syncStatus == SyncStatus.PENDIENTE } -> SyncStatus.PENDIENTE
+            captures.isNotEmpty() -> SyncStatus.SINCRONIZADO
+            else -> SyncStatus.PENDIENTE
+        }
+
+    val lastCaptureFormattedTime: String
+        get() {
+            val iso = lastCaptureIso ?: return "Sin tomas"
+            val timePart = iso.substringAfter("T", "").take(5)
+            return if (timePart.isNotBlank()) "$timePart hrs" else iso.take(10)
+        }
+}
+
+/**
  * Alerta de proximidad GPS a un Foco de Infestación Activo NOM-019 (`RN-27`, `RN-34`, `CU-M10`).
  */
 data class ProximityAlertUi(
@@ -148,13 +197,19 @@ data class AnalysisResultUiState(
     val isBackendReachable: Boolean = false,
     val openCvNativeVersion: String = "...",
 
-    // Navegación a la Sección Independiente de un Árbol
+    // Navegación a la Sección Independiente de un Árbol o Zona
+    val homeWorkTab: HomeWorkTab = HomeWorkTab.ARBOLES,
     val selectedTreeDetailId: String? = null,
+    val selectedZoneDetailId: String? = null,
+    val isInspectingHistoricalRecord: Boolean = false,
     val homeTreeFilter: TreeHealthFilter = TreeHealthFilter.TODOS,
 
     // Bottom Sheet contextual para mapa de árboles y focos
     val selectedMapTree: TreeRecord? = null,
     val showMapBottomSheet: Boolean = false,
+    val focusedMapTreeId: String? = null,
+    val showUserLocationOnMap: Boolean = true,
+    val mapTargetCoordinates: Pair<Double, Double>? = null,
 
     // Búsqueda rápida de árbol en Wizard Paso 2
     val treeSearchQuery: String = "",
@@ -209,7 +264,11 @@ data class AnalysisResultUiState(
 
     // Mensajes informativos y de error
     val statusBannerMessage: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+
+    // Listados consolidados precalculados (Optimizados para 120Hz sin recalculación en recomposición)
+    val treeProgressionList: List<TreeProgressionSummary> = computeTreeProgressions(availableTrees, allRecords),
+    val zoneProgressionList: List<FoliageZoneProgressionSummary> = computeZoneProgressions(availableZones, allRecords)
 ) {
     val filteredHistoryRecords: List<SavedDetectionRecord>
         get() = when (historyFilter) {
@@ -225,13 +284,68 @@ data class AnalysisResultUiState(
             }
         }
 
-    /**
-     * Construye el listado consolidado de árboles con su progreso histórico de capturas.
-     */
-    val treeProgressionList: List<TreeProgressionSummary>
-        get() {
+
+    val filteredTreeProgressions: List<TreeProgressionSummary>
+        get() = when (homeTreeFilter) {
+            TreeHealthFilter.TODOS -> treeProgressionList
+            TreeHealthFilter.SANOS -> treeProgressionList.filter {
+                it.currentStatus == ClassificationOutcome.SANO
+            }
+            TreeHealthFilter.INFESTADOS -> treeProgressionList.filter {
+                it.currentStatus == ClassificationOutcome.INFESTADO
+            }
+            TreeHealthFilter.PENDIENTES_SYNC -> treeProgressionList.filter {
+                it.syncStatus != SyncStatus.SINCRONIZADO
+            }
+        }
+
+    val selectedTreeProgression: TreeProgressionSummary?
+        get() = selectedTreeDetailId?.let { id ->
+            treeProgressionList.firstOrNull {
+                it.tree.idArbol == id || it.tree.nombreEspecifico.equals(id, ignoreCase = true)
+            }
+        }
+
+
+
+    val filteredZoneProgressions: List<FoliageZoneProgressionSummary>
+        get() = when (homeTreeFilter) {
+            TreeHealthFilter.TODOS -> zoneProgressionList
+            TreeHealthFilter.SANOS -> zoneProgressionList.filter {
+                it.avgPctSano >= 50 && it.avgPctDanado < 25
+            }
+            TreeHealthFilter.INFESTADOS -> zoneProgressionList.filter {
+                it.avgPctDanado >= 35 || it.damagedCount > 0
+            }
+            TreeHealthFilter.PENDIENTES_SYNC -> zoneProgressionList.filter {
+                it.syncStatus != SyncStatus.SINCRONIZADO
+            }
+        }
+
+    val selectedZoneProgression: FoliageZoneProgressionSummary?
+        get() = selectedZoneDetailId?.let { id ->
+            zoneProgressionList.firstOrNull {
+                it.zone.idZona == id || it.zone.nombreZona.equals(id, ignoreCase = true)
+            }
+        }
+
+    val focusedMapTree: TreeRecord?
+        get() = if (focusedMapTreeId != null) {
+            treeProgressionList.firstOrNull { it.tree.idArbol == focusedMapTreeId }?.tree
+                ?: availableTrees.firstOrNull { it.idArbol == focusedMapTreeId }
+        } else null
+
+    companion object {
+        /**
+         * Construye el listado consolidado de árboles con su progreso histórico de capturas.
+         * Función pura ejecutable en hilos de background (Dispatchers.Default) para no bloquear la UI a 120Hz.
+         */
+        fun computeTreeProgressions(
+            trees: List<TreeRecord>,
+            allRecords: List<SavedDetectionRecord>
+        ): List<TreeProgressionSummary> {
             val barkRecords = allRecords.filter { it.sampleType == SampleType.CORTEZA }
-            val mergedTrees = availableTrees.toMutableList()
+            val mergedTrees = trees.toMutableList()
 
             barkRecords.forEach { rec ->
                 val (recId, recName, recSpecies) = when (val assoc = rec.targetAssociation) {
@@ -327,24 +441,99 @@ data class AnalysisResultUiState(
             )
         }
 
-    val filteredTreeProgressions: List<TreeProgressionSummary>
-        get() = when (homeTreeFilter) {
-            TreeHealthFilter.TODOS -> treeProgressionList
-            TreeHealthFilter.SANOS -> treeProgressionList.filter {
-                it.currentStatus == ClassificationOutcome.SANO
-            }
-            TreeHealthFilter.INFESTADOS -> treeProgressionList.filter {
-                it.currentStatus == ClassificationOutcome.INFESTADO
-            }
-            TreeHealthFilter.PENDIENTES_SYNC -> treeProgressionList.filter {
-                it.syncStatus != SyncStatus.SINCRONIZADO
-            }
-        }
+        /**
+         * Construye el listado consolidado de zonas de follaje con su progreso de tomas.
+         * Función pura ejecutable en hilos de background (Dispatchers.Default) para no bloquear la UI a 120Hz.
+         */
+        fun computeZoneProgressions(
+            zones: List<FoliageZoneRecord>,
+            allRecords: List<SavedDetectionRecord>
+        ): List<FoliageZoneProgressionSummary> {
+            val foliageRecords = allRecords.filter { it.sampleType == SampleType.FOLLAJE }
+            val mergedZones = zones.toMutableList()
 
-    val selectedTreeProgression: TreeProgressionSummary?
-        get() = selectedTreeDetailId?.let { id ->
-            treeProgressionList.firstOrNull {
-                it.tree.idArbol == id || it.tree.nombreEspecifico.equals(id, ignoreCase = true)
+            foliageRecords.forEach { rec ->
+                val (recId, recName, recRadius) = when (val assoc = rec.targetAssociation) {
+                    is TargetAssociation.FollajeTarget.ExistingZone ->
+                        Triple(assoc.idZona, assoc.nombreZona, assoc.radioMetros)
+                    is TargetAssociation.FollajeTarget.NewZone ->
+                        Triple(null, assoc.nombreZonaNuevo, assoc.radioMetrosZona)
+                    else -> Triple(null, "", 50.0)
+                }
+                val alreadyPresent = mergedZones.any { zone ->
+                    (recId != null && zone.idZona == recId) ||
+                        zone.nombreZona.trim().equals(recName.trim(), ignoreCase = true)
+                }
+                if (!alreadyPresent && recName.isNotBlank()) {
+                    mergedZones.add(
+                        FoliageZoneRecord(
+                            idZona = recId ?: "virtual-${recName.trim().lowercase()}",
+                            nombreZona = recName.trim(),
+                            latitudCentro = rec.latitud,
+                            longitudCentro = rec.longitud,
+                            radioMetros = recRadius,
+                            fechaRegistroIso = rec.fechaCapturaIso,
+                            descripcion = rec.observaciones ?: "Zona aérea registrada en campo",
+                            idCuenta = rec.brigadistaId,
+                            idDispositivo = rec.idDispositivo
+                        )
+                    )
+                }
             }
+
+            return mergedZones.map { zone ->
+                val zoneCaptures = foliageRecords.filter { rec ->
+                    when (val assoc = rec.targetAssociation) {
+                        is TargetAssociation.FollajeTarget.ExistingZone ->
+                            assoc.idZona == zone.idZona ||
+                                assoc.nombreZona.trim().equals(zone.nombreZona.trim(), ignoreCase = true)
+                        is TargetAssociation.FollajeTarget.NewZone ->
+                            assoc.nombreZonaNuevo.trim().equals(zone.nombreZona.trim(), ignoreCase = true)
+                        else -> false
+                    }
+                }.sortedByDescending { it.fechaCapturaMillis }
+
+                val total = zoneCaptures.size
+                val healthyCount = zoneCaptures.count { it.classificationOutcome == ClassificationOutcome.SANO }
+                val damagedCount = zoneCaptures.count { it.classificationOutcome == ClassificationOutcome.INFESTADO }
+                val undeterminedCount = (total - healthyCount - damagedCount).coerceAtLeast(0)
+
+                val avgSano = if (total > 0) {
+                    kotlin.math.round(zoneCaptures.map { (it.chromaticResult?.pctSano ?: 0.0) * 100.0 }.average()).toInt()
+                } else 0
+                val avgRegular = if (total > 0) {
+                    kotlin.math.round(zoneCaptures.map { (it.chromaticResult?.pctRegular ?: 0.0) * 100.0 }.average()).toInt()
+                } else 0
+                val avgDanado = if (total > 0) {
+                    kotlin.math.round(zoneCaptures.map { (it.chromaticResult?.pctDanado ?: 0.0) * 100.0 }.average()).toInt()
+                } else 0
+
+                val dominant = when {
+                    avgDanado >= 35 -> "Necrosis / Dañado"
+                    avgRegular >= 30 -> "Estrés foliar activo"
+                    avgSano >= 45 -> "Follaje Sano y Vigoroso"
+                    total == 0 -> "Sin tomas aéreas"
+                    else -> "Monitoreo preventivo"
+                }
+
+                FoliageZoneProgressionSummary(
+                    zone = zone,
+                    captures = zoneCaptures,
+                    totalCapturas = total,
+                    healthyCount = healthyCount,
+                    undeterminedCount = undeterminedCount,
+                    damagedCount = damagedCount,
+                    avgPctSano = avgSano,
+                    avgPctRegular = avgRegular,
+                    avgPctDanado = avgDanado,
+                    currentDominantSignal = dominant,
+                    lastCaptureMillis = zoneCaptures.firstOrNull()?.fechaCapturaMillis,
+                    lastCaptureIso = zoneCaptures.firstOrNull()?.fechaCapturaIso ?: zone.fechaRegistroIso
+                )
+            }.sortedWith(
+                compareByDescending<FoliageZoneProgressionSummary> { it.lastCaptureMillis ?: 0L }
+                    .thenBy { it.zone.nombreZona }
+            )
         }
+    }
 }

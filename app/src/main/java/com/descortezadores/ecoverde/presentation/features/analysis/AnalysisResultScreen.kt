@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -64,6 +65,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Yard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -71,7 +73,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -131,6 +133,9 @@ import com.descortezadores.ecoverde.presentation.features.analysis.components.Al
 import com.descortezadores.ecoverde.presentation.features.analysis.components.CaptureWizardSection
 import com.descortezadores.ecoverde.presentation.features.analysis.components.OfflineForestMapLibreView
 import com.descortezadores.ecoverde.presentation.features.analysis.components.parseHexColor
+import com.descortezadores.ecoverde.presentation.theme.ChromaticFoliageDamaged
+import com.descortezadores.ecoverde.presentation.theme.ChromaticFoliageHealthy
+import com.descortezadores.ecoverde.presentation.theme.ChromaticFoliageRegular
 import com.descortezadores.ecoverde.presentation.theme.EcoVerdeMotion
 import com.descortezadores.ecoverde.presentation.theme.GreenPrimary
 import com.descortezadores.ecoverde.presentation.theme.StatusHealthyGreen
@@ -207,13 +212,22 @@ fun AnalysisResultScreen(
     onDismissMapBottomSheet: () -> Unit = {},
     onSearchQueryTreeChanged: (String) -> Unit = {},
     onDeleteTreeClick: (String) -> Unit = {},
-    onSaveTreeObservationsClick: (String, String) -> Unit = { _, _ -> }
+    onSaveTreeObservationsClick: (String, String) -> Unit = { _, _ -> },
+    onHomeWorkTabChanged: (HomeWorkTab) -> Unit = {},
+    onOpenZoneDetailClick: (String) -> Unit = {},
+    onCloseZoneDetailClick: () -> Unit = {},
+    onStartNewCaptureForZoneClick: (String) -> Unit = {},
+    onDeleteZoneClick: (String) -> Unit = {},
+    onSaveZoneObservationsClick: (String, String) -> Unit = { _, _ -> },
+    onFocusTreeOnMap: (TreeRecord) -> Unit = {},
+    onCenterOnUserGps: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     val canHandlePredictiveBack = uiState.selectedTreeProgression != null ||
+        uiState.selectedZoneProgression != null ||
         uiState.currentDestination != EcoVerdeMainDestination.INICIO
     val predictiveBackProgress = remember { Animatable(0f) }
 
@@ -227,6 +241,10 @@ fun AnalysisResultScreen(
                 uiState.currentDestination == EcoVerdeMainDestination.INICIO
             ) {
                 onCloseTreeDetailClick()
+            } else if (uiState.selectedZoneProgression != null &&
+                uiState.currentDestination == EcoVerdeMainDestination.INICIO
+            ) {
+                onCloseZoneDetailClick()
             } else {
                 onSelectDestination(EcoVerdeMainDestination.INICIO)
             }
@@ -441,17 +459,50 @@ fun AnalysisResultScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = {
+                            onFocusTreeOnMap(mapTree)
+                            onDismissMapBottomSheet()
+                        },
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Ir en mapa",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+
                     OutlinedButton(
                         onClick = {
                             onDismissMapBottomSheet()
                             onOpenTreeDetailClick(mapTree.idArbol)
                         },
                         shape = CircleShape,
-                        modifier = Modifier.weight(1f)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
                     ) {
-                        Text("Ver Detalle")
+                        Text(
+                            text = "Ver Detalle",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
 
                     Button(
@@ -461,10 +512,18 @@ fun AnalysisResultScreen(
                             onStartWizard(SampleType.CORTEZA, mapTree.idArbol)
                         },
                         shape = CircleShape,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .height(42.dp)
                     ) {
-                        Text("+ Nueva Captura")
+                        Text(
+                            text = "+ Nueva Captura",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
                     }
                 }
             }
@@ -478,47 +537,53 @@ fun AnalysisResultScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 scrollBehavior = scrollBehavior,
                 windowInsets = TopAppBarDefaults.windowInsets,
                 navigationIcon = {
                     if (uiState.currentDestination == EcoVerdeMainDestination.ANALIZAR) {
-                        IconButton(onClick = { onSelectDestination(EcoVerdeMainDestination.INICIO) }) {
+                        IconButton(onClick = {
+                            if (uiState.isInspectingHistoricalRecord) {
+                                onSelectDestination(EcoVerdeMainDestination.ALERTAS)
+                            } else {
+                                onSelectDestination(EcoVerdeMainDestination.INICIO)
+                            }
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Volver al Dashboard",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 },
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.Start) {
                         if (uiState.currentDestination == EcoVerdeMainDestination.ANALIZAR) {
                             Text(
                                 text = "Asistente de Captura",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Paso ${uiState.wizardStep.stepNumber}: ${uiState.wizardStep.title}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            // Cabecera Contextual (Módulo 2): Saludo al técnico
-                            val firstName = session.nombreCompleto.substringBefore(" ").ifBlank { "Técnico" }
+                            // Cabecera Contextual: Saludo al biólogo (alineado a la izquierda)
+                            val firstName = session.nombreCompleto.substringBefore(" ").ifBlank { "Biólogo" }
                             Text(
                                 text = "Hola, $firstName",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "EcoVerde • Bosque de Chapultepec",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -539,12 +604,12 @@ fun AnalysisResultScreen(
                             Icon(
                                 imageVector = Icons.Default.Notifications,
                                 contentDescription = "Centro de Alertas",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
 
-                    // Indicador de estado de sincronización global
+                    // Indicador de estado de sincronización global (AWS / Cloud)
                     val syncIcon = if (uiState.daySummary.pendientesSincronizacion > 0) {
                         Icons.Default.CloudUpload
                     } else {
@@ -557,15 +622,17 @@ fun AnalysisResultScreen(
                             tint = if (uiState.daySummary.pendientesSincronizacion > 0) {
                                 StatusUncertainAmber
                             } else {
-                                MaterialTheme.colorScheme.onPrimary
+                                GreenPrimary
                             }
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = GreenPrimary,
-                    scrolledContainerColor = GreenPrimary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -630,6 +697,13 @@ fun AnalysisResultScreen(
         }
     ) { innerPadding ->
         val backFraction = predictiveBackProgress.value
+        val mainScrollState = rememberScrollState()
+
+        // Cada que se cambia de pestaña en la navbar, reajustar el scroll al inicio para evitar saltos
+        LaunchedEffect(uiState.currentDestination) {
+            mainScrollState.scrollTo(0)
+        }
+
         SharedTransitionLayout {
             Column(
                 modifier = Modifier
@@ -643,7 +717,7 @@ fun AnalysisResultScreen(
                         scaleY = scale
                         alpha = 1f - (backFraction * 0.15f)
                     }
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(mainScrollState)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -717,41 +791,41 @@ fun AnalysisResultScreen(
                     }
                 }
 
-                // Transición animada entre destinos principales
+                // Transición ultra-fluida optimizada para 120Hz sin efecto fantasma ni superposiciones
                 AnimatedContent(
                     targetState = uiState.currentDestination,
                     transitionSpec = {
-                        (fadeIn(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                            scaleIn(
-                                initialScale = 0.96f,
-                                animationSpec = EcoVerdeMotion.expressiveSpatialSpring()
-                            )) togetherWith
-                            (fadeOut(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                                scaleOut(
-                                    targetScale = 0.96f,
-                                    animationSpec = EcoVerdeMotion.standardSpatialSpring()
-                                ))
+                        if (targetState == EcoVerdeMainDestination.ANALIZAR) {
+                            EcoVerdeMotion.modalOpenTransform()
+                        } else if (initialState == EcoVerdeMainDestination.ANALIZAR) {
+                            EcoVerdeMotion.modalCloseTransform()
+                        } else {
+                            // Transición limpia de navbar: la pantalla anterior se disuelve al instante sin estorbar
+                            EcoVerdeMotion.navDestinationTransform()
+                        }
                     },
                     label = "MainDestinationAnimatedContent"
                 ) { destination ->
                     when (destination) {
                         EcoVerdeMainDestination.INICIO -> {
                             AnimatedContent(
-                                targetState = uiState.selectedTreeProgression,
+                                targetState = Pair(uiState.selectedTreeProgression, uiState.selectedZoneProgression),
                                 transitionSpec = {
-                                    (fadeIn(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                                        scaleIn(
-                                            initialScale = 0.95f,
-                                            animationSpec = EcoVerdeMotion.expressiveSpatialSpring()
-                                        )) togetherWith
-                                        (fadeOut(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                                            scaleOut(
-                                                targetScale = 0.95f,
-                                                animationSpec = EcoVerdeMotion.standardSpatialSpring()
-                                            ))
+                                    val isOpeningDetail = (initialState.first == null && initialState.second == null) &&
+                                        (targetState.first != null || targetState.second != null)
+                                    val isClosingDetail = (initialState.first != null || initialState.second != null) &&
+                                        (targetState.first == null && targetState.second == null)
+
+                                    if (isOpeningDetail) {
+                                        EcoVerdeMotion.detailOpenTransform()
+                                    } else if (isClosingDetail) {
+                                        EcoVerdeMotion.detailCloseTransform()
+                                    } else {
+                                        EcoVerdeMotion.cleanCrossfade()
+                                    }
                                 },
-                                label = "TreeProgressionDetailAnimatedContent"
-                            ) { activeTreeProgression ->
+                                label = "ProgressionDetailAnimatedContent"
+                            ) { (activeTreeProgression, activeZoneProgression) ->
                                 if (activeTreeProgression != null) {
                                     // Módulo 3: Detalle de Árbol
                                     TreeDetailProgressionSection(
@@ -774,6 +848,26 @@ fun AnalysisResultScreen(
                                         onInspectCaptureClick = onInspectRecordClick,
                                         onDeleteTreeClick = onDeleteTreeClick
                                     )
+                                } else if (activeZoneProgression != null) {
+                                    // Detalle de Zona de Follaje (Dosel)
+                                    ZoneDetailProgressionSection(
+                                        progression = activeZoneProgression,
+                                        onBackToZonesClick = onCloseZoneDetailClick,
+                                        onNewCaptureForZoneClick = {
+                                            onStartNewCaptureForZoneClick(activeZoneProgression.zone.idZona)
+                                            onStartWizard(SampleType.FOLLAJE, null)
+                                            triggerCameraWithMetadata()
+                                        },
+                                        onCenterMapOnZoneClick = { lat, lon ->
+                                            onSelectDestination(EcoVerdeMainDestination.MAPA)
+                                            onSimulateCoordinatesClick(lat, lon)
+                                        },
+                                        onSaveZoneObservationsClick = onSaveZoneObservationsClick,
+                                        fieldObservations = uiState.fieldObservations,
+                                        onObservationsChanged = onObservationsChanged,
+                                        onInspectCaptureClick = onInspectRecordClick,
+                                        onDeleteZoneClick = onDeleteZoneClick
+                                    )
                                 } else {
                                     // Módulo 2: Hub Principal / Dashboard de la Jornada
                                     DashboardJornadaSection(
@@ -781,8 +875,10 @@ fun AnalysisResultScreen(
                                         uiState = uiState,
                                         sharedTransitionScope = this@SharedTransitionLayout,
                                         animatedVisibilityScope = this,
+                                        onHomeWorkTabChanged = onHomeWorkTabChanged,
                                         onHomeTreeFilterChanged = onHomeTreeFilterChanged,
                                         onOpenTreeDetailClick = onOpenTreeDetailClick,
+                                        onOpenZoneDetailClick = onOpenZoneDetailClick,
                                         onNewTreeNameChanged = onNewTreeNameChanged,
                                         onNewTreeSpeciesChanged = onNewTreeSpeciesChanged,
                                         onCreateTreeSectionDirectlyClick = onCreateTreeSectionDirectlyClick,
@@ -837,7 +933,9 @@ fun AnalysisResultScreen(
                                 uiState = uiState,
                                 onRefreshDeviceLocation = onRefreshDeviceLocation,
                                 onSimulateCoordinatesClick = onSimulateCoordinatesClick,
-                                onTreeMarkerClicked = onMapTreeSelected
+                                onTreeMarkerClicked = onMapTreeSelected,
+                                onFocusTreeOnMap = onFocusTreeOnMap,
+                                onCenterOnUserGps = onCenterOnUserGps
                             )
                         }
 
@@ -882,8 +980,10 @@ private fun DashboardJornadaSection(
     uiState: AnalysisResultUiState,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    onHomeWorkTabChanged: (HomeWorkTab) -> Unit,
     onHomeTreeFilterChanged: (TreeHealthFilter) -> Unit,
     onOpenTreeDetailClick: (String) -> Unit,
+    onOpenZoneDetailClick: (String) -> Unit,
     onNewTreeNameChanged: (String) -> Unit,
     onNewTreeSpeciesChanged: (String) -> Unit,
     onCreateTreeSectionDirectlyClick: () -> Unit,
@@ -898,6 +998,7 @@ private fun DashboardJornadaSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -978,6 +1079,7 @@ private fun DashboardJornadaSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -991,6 +1093,30 @@ private fun DashboardJornadaSection(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+
+                // Alternador de Pestaña: Árboles (Corteza) vs Zonas de Follaje (Dosel)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    HomeWorkTab.entries.forEachIndexed { index, tab ->
+                        val selected = uiState.homeWorkTab == tab
+                        SegmentedButton(
+                            selected = selected,
+                            onClick = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onHomeWorkTabChanged(tab)
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = HomeWorkTab.entries.size
+                            ),
+                            label = {
+                                Text(
+                                    text = tab.label,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                    }
+                }
 
                 // Pestañas o chips de filtro rápido: Todos, Sanos, Infestados, Pendientes de sincronizar
                 Row(
@@ -1015,30 +1141,59 @@ private fun DashboardJornadaSection(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // Tarjetas de árboles inspeccionados hoy
-                val trees = uiState.filteredTreeProgressions
-                if (trees.isEmpty()) {
-                    Text(
-                        text = "No hay árboles que coincidan con el filtro seleccionado.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    trees.forEach { prog ->
-                        val sharedCardModifier = with(sharedTransitionScope) {
-                            Modifier.sharedBounds(
-                                sharedContentState = rememberSharedContentState(
-                                    key = "tree-section-${prog.tree.idArbol}"
-                                ),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                                boundsTransform = { _, _ -> EcoVerdeMotion.expressiveSpatialSpring() }
-                            )
+                AnimatedContent(
+                    targetState = uiState.homeWorkTab,
+                    transitionSpec = { EcoVerdeMotion.cleanCrossfade() },
+                    label = "HomeWorkTabAnimatedContent"
+                ) { workTab ->
+                    if (workTab == HomeWorkTab.ARBOLES) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Tarjetas de árboles inspeccionados hoy
+                            val trees = uiState.filteredTreeProgressions
+                            if (trees.isEmpty()) {
+                                Text(
+                                    text = "No hay árboles que coincidan con el filtro seleccionado.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                trees.forEach { prog ->
+                                    val sharedCardModifier = with(sharedTransitionScope) {
+                                        Modifier.sharedBounds(
+                                            sharedContentState = rememberSharedContentState(
+                                                key = "tree-section-${prog.tree.idArbol}"
+                                            ),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                            boundsTransform = { _, _ -> EcoVerdeMotion.expressiveSpatialSpring() }
+                                        )
+                                    }
+                                    TreeProgressionRowCard(
+                                        progression = prog,
+                                        onClick = { onOpenTreeDetailClick(prog.tree.idArbol) },
+                                        modifier = sharedCardModifier
+                                    )
+                                }
+                            }
                         }
-                        TreeProgressionRowCard(
-                            progression = prog,
-                            onClick = { onOpenTreeDetailClick(prog.tree.idArbol) },
-                            modifier = sharedCardModifier
-                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Tarjetas de zonas de follaje inspeccionadas hoy
+                            val zones = uiState.filteredZoneProgressions
+                            if (zones.isEmpty()) {
+                                Text(
+                                    text = "No hay zonas de follaje que coincidan con el filtro. Utiliza el botón '+' para registrar una nueva toma aérea o de dosel.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                zones.forEach { prog ->
+                                    ZoneProgressionRowCard(
+                                        progression = prog,
+                                        onClick = { onOpenZoneDetailClick(prog.zone.idZona) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1336,6 +1491,7 @@ private fun TreeDetailProgressionSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -1414,6 +1570,7 @@ private fun TreeDetailProgressionSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -1561,6 +1718,531 @@ private fun TreeCaptureHistoryCardRow(
 }
 
 /**
+ * Tarjeta individual de Zona de Follaje en la Lista de Trabajo:
+ * - Nombre de la zona
+ * - Radio y hora de última captura
+ * - Chip fitosanitario según balance cromático de dosel
+ * - Chip de sincronización
+ */
+@Composable
+private fun ZoneProgressionRowCard(
+    progression: FoliageZoneProgressionSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val (statusBg, statusFg) = when {
+        progression.avgPctDanado >= 35 -> StatusInfestedRed.copy(alpha = 0.15f) to StatusInfestedRed
+        progression.avgPctRegular >= 30 -> StatusUncertainAmber.copy(alpha = 0.18f) to Color(0xFFE65100)
+        else -> StatusHealthyGreen.copy(alpha = 0.15f) to StatusHealthyGreen
+    }
+
+    val (syncIcon, syncColor) = when (progression.syncStatus) {
+        SyncStatus.SINCRONIZADO -> Icons.Default.CloudDone to StatusHealthyGreen
+        SyncStatus.PENDIENTE -> Icons.Default.CloudUpload to Color(0xFFE65100)
+        SyncStatus.ERROR -> Icons.Default.Error to StatusInfestedRed
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = progression.zone.nombreZona,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                val tomasLabel = if (progression.totalCapturas == 1) "1 toma" else "${progression.totalCapturas} tomas"
+                Text(
+                    text = "${progression.lastCaptureFormattedTime} • $tomasLabel",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (progression.totalCapturas > 0) {
+                    Text(
+                        text = "Dosel: ${progression.avgPctSano}% sano • ${progression.avgPctRegular}% estrés • ${progression.avgPctDanado}% daño",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = statusBg
+                ) {
+                    Text(
+                        text = progression.statusBadgeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = statusFg,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = syncColor.copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Icon(
+                            imageVector = syncIcon,
+                            contentDescription = null,
+                            tint = syncColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = progression.syncStatus.displayLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = syncColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Detalle independiente de una Zona de Follaje / Polígono de sobrevuelo (Dosel).
+ */
+@Composable
+private fun ZoneDetailProgressionSection(
+    progression: FoliageZoneProgressionSummary,
+    onBackToZonesClick: () -> Unit,
+    onNewCaptureForZoneClick: () -> Unit,
+    onCenterMapOnZoneClick: (Double, Double) -> Unit,
+    onSaveZoneObservationsClick: (String, String) -> Unit = { _, _ -> },
+    fieldObservations: String,
+    onObservationsChanged: (String) -> Unit,
+    onInspectCaptureClick: (SavedDetectionRecord) -> Unit,
+    onDeleteZoneClick: (String) -> Unit = {}
+) {
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Text(
+                    text = "¿Eliminar zona de follaje?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Se eliminará permanentemente '${progression.zone.nombreZona}' y todas las tomas aéreas asociadas a esta zona."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteZoneClick(progression.zone.idZona)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusInfestedRed)
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    val (statusColor, containerBg) = when {
+        progression.avgPctDanado >= 35 -> StatusInfestedRed to Color(0xFFFFEBEE)
+        progression.avgPctRegular >= 30 -> StatusUncertainAmber to Color(0xFFFFF8E1)
+        else -> StatusHealthyGreen to Color(0xFFE8F5E9)
+    }
+
+    val zoneLat = progression.zone.latitudCentro
+    val zoneLon = progression.zone.longitudCentro
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Barra superior
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedButton(
+                    onClick = onBackToZonesClick,
+                    shape = CircleShape
+                ) {
+                    Text("← Lista de trabajo")
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = progression.zone.nombreZona,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Zona de monitoreo de dosel (Follaje)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(
+                onClick = { showDeleteConfirmDialog = true }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar zona",
+                    tint = StatusInfestedRed
+                )
+            }
+        }
+
+        // 1. TARJETA DE ESTADO ACTUAL DE LA ZONA
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = containerBg),
+            border = BorderStroke(1.5.dp, statusColor.copy(alpha = 0.4f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "ESTADO DEL DOSEL",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = statusColor
+                        )
+                        Text(
+                            text = progression.statusBadgeLabel.uppercase(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Black,
+                            color = statusColor
+                        )
+                        Text(
+                            text = "Última toma: ${progression.lastCaptureFormattedTime}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = statusColor.copy(alpha = 0.9f)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(statusColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Yard,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+
+                // Distribución cromática promedio
+                if (progression.totalCapturas > 0) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Promedio de coloración foliar en la zona:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = ChromaticFoliageHealthy.copy(alpha = 0.2f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Text("Sano", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageHealthy, fontWeight = FontWeight.Bold)
+                                    Text("${progression.avgPctSano}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageHealthy)
+                                }
+                            }
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = ChromaticFoliageRegular.copy(alpha = 0.25f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Text("Estrés", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                    Text("${progression.avgPctRegular}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                }
+                            }
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = ChromaticFoliageDamaged.copy(alpha = 0.2f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Text("Dañado", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageDamaged, fontWeight = FontWeight.Bold)
+                                    Text("${progression.avgPctDanado}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageDamaged)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Botón directo: Nueva toma de follaje en esta zona
+                Button(
+                    onClick = onNewCaptureForZoneClick,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Nueva toma aérea / follaje en esta zona", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // 2. FICHA TÉCNICA DE LA ZONA
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Ficha Técnica de la Zona",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                ProfileFieldRow("Nombre", progression.zone.nombreZona)
+                ProfileFieldRow("Coordenadas centrales", String.format("%.5f, %.5f", zoneLat, zoneLon))
+                ProfileFieldRow("Fecha de alta", progression.zone.fechaRegistroIso.take(10))
+
+                Button(
+                    onClick = { onCenterMapOnZoneClick(zoneLat, zoneLon) },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ver ubicación en mapa")
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Text(
+                    text = "Notas y Observaciones de la Zona:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedTextField(
+                    value = fieldObservations,
+                    onValueChange = onObservationsChanged,
+                    placeholder = { Text("Añadir observaciones sobre el dosel, condiciones de vuelo...") },
+                    shape = MaterialTheme.shapes.medium,
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = { onSaveZoneObservationsClick(progression.zone.idZona, fieldObservations) },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Guardar observaciones", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        // 3. HISTORIAL DE TOMAS AÉREAS / FOLLAJE PARA ESTA ZONA
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Historial de tomas para esta zona (${progression.captures.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (progression.captures.isEmpty()) {
+                    Text(
+                        text = "Aún no se han registrado tomas de follaje para esta zona.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    progression.captures.forEach { rec ->
+                        ZoneCaptureHistoryCardRow(
+                            record = rec,
+                            onClick = { onInspectCaptureClick(rec) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. ELIMINAR ZONA
+        OutlinedButton(
+            onClick = { showDeleteConfirmDialog = true },
+            shape = CircleShape,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = StatusInfestedRed
+            ),
+            border = BorderStroke(1.dp, StatusInfestedRed.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Eliminar esta zona de follaje y sus registros", fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun ZoneCaptureHistoryCardRow(
+    record: SavedDetectionRecord,
+    onClick: () -> Unit
+) {
+    val chrom = record.chromaticResult
+    val pctDanado = ((chrom?.pctDanado ?: 0.0) * 100.0).toInt()
+    val pctSano = ((chrom?.pctSano ?: 0.0) * 100.0).toInt()
+    val pctRegular = ((chrom?.pctRegular ?: 0.0) * 100.0).toInt()
+
+    val statusColor = when {
+        pctDanado >= 35 -> StatusInfestedRed
+        pctRegular >= 30 -> StatusUncertainAmber
+        else -> StatusHealthyGreen
+    }
+
+    val (syncIcon, syncColor) = when (record.syncStatus) {
+        SyncStatus.SINCRONIZADO -> Icons.Default.CloudDone to StatusHealthyGreen
+        SyncStatus.PENDIENTE -> Icons.Default.CloudUpload to Color(0xFFE65100)
+        SyncStatus.ERROR -> Icons.Default.Error to StatusInfestedRed
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(statusColor.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Yard,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Toma aérea • ${record.fechaCapturaIso.take(16).replace('T', ' ')}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Verde: $pctSano% • Estrés: $pctRegular% • Necrosis: $pctDanado%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = syncColor.copy(alpha = 0.12f)
+            ) {
+                Icon(
+                    imageVector = syncIcon,
+                    contentDescription = null,
+                    tint = syncColor,
+                    modifier = Modifier
+                        .padding(6.dp)
+                        .size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
  * Módulo 4: Mapa Local de Árboles y Focos.
  */
 @Composable
@@ -1568,12 +2250,15 @@ private fun LocalForestMapSection(
     uiState: AnalysisResultUiState,
     onRefreshDeviceLocation: () -> Unit,
     onSimulateCoordinatesClick: (Double, Double) -> Unit,
-    onTreeMarkerClicked: (TreeRecord) -> Unit
+    onTreeMarkerClicked: (TreeRecord) -> Unit,
+    onFocusTreeOnMap: (TreeRecord) -> Unit = {},
+    onCenterOnUserGps: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -1599,7 +2284,7 @@ private fun LocalForestMapSection(
                     )
                 }
                 OutlinedButton(
-                    onClick = onRefreshDeviceLocation,
+                    onClick = onCenterOnUserGps,
                     shape = CircleShape
                 ) {
                     Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -1615,13 +2300,20 @@ private fun LocalForestMapSection(
                     .height(340.dp)
                     .clip(MaterialTheme.shapes.medium)
             ) {
+                val mapTrees = remember(uiState.treeProgressionList) {
+                    uiState.treeProgressionList.map { it.tree }
+                }
                 OfflineForestMapLibreView(
                     currentLat = uiState.captureLatitude,
                     currentLon = uiState.captureLongitude,
-                    trees = uiState.treeProgressionList.map { it.tree },
+                    showUserLocation = uiState.showUserLocationOnMap,
+                    focusedTree = uiState.focusedMapTree,
+                    targetCoordinates = uiState.mapTargetCoordinates,
+                    trees = mapTrees,
                     records = uiState.allRecords,
                     hotspots = uiState.activeHotspots,
                     onMapCoordinateClicked = onSimulateCoordinatesClick,
+                    onTreeSelected = onTreeMarkerClicked,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -1633,7 +2325,7 @@ private fun LocalForestMapSection(
                     color = Color.Black.copy(alpha = 0.75f)
                 ) {
                     Text(
-                        text = "Árboles: ${uiState.treeProgressionList.size} • Focos activos: ${uiState.activeHotspots.size}",
+                        text = "Árboles: ${uiState.treeProgressionList.size} • Zonas: ${uiState.zoneProgressionList.size} • Focos activos: ${uiState.activeHotspots.size}",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1649,7 +2341,7 @@ private fun LocalForestMapSection(
                 fontWeight = FontWeight.Bold
             )
 
-            uiState.treeProgressionList.take(6).forEach { prog ->
+            uiState.treeProgressionList.take(8).forEach { prog ->
                 val tree = prog.tree
                 Surface(
                     shape = MaterialTheme.shapes.medium,
@@ -1664,7 +2356,7 @@ private fun LocalForestMapSection(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = tree.nombreEspecifico,
                                 style = MaterialTheme.typography.bodySmall,
@@ -1676,12 +2368,49 @@ private fun LocalForestMapSection(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            text = "Ver ›",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenPrimary
-                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val treeLat = tree.latitud
+                            val treeLon = tree.longitud
+                            if (treeLat != null && treeLon != null) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = GreenPrimary.copy(alpha = 0.12f),
+                                    modifier = Modifier.clickable {
+                                        onFocusTreeOnMap(tree)
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocationOn,
+                                            contentDescription = "Ir al mapa",
+                                            tint = GreenPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "Ir al mapa",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = GreenPrimary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "Ver ›",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -1766,6 +2495,7 @@ private fun BrigadistaProfileSection(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
