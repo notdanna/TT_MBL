@@ -141,6 +141,8 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
 
                 is TargetAssociation.FollajeTarget.ExistingZone -> {
                     idZona = targetAssociation.idZona
+                    nombreZonaNuevo = targetAssociation.nombreZona
+                    radioMetrosZona = targetAssociation.radioMetros
                 }
 
                 is TargetAssociation.FollajeTarget.NewZone -> {
@@ -148,6 +150,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                     radioMetrosZona = targetAssociation.radioMetrosZona
 
                     val localZoneId = UUID.randomUUID().toString()
+                    idZona = localZoneId
                     forestMonitoringDao.upsertZonaFollaje(
                         ZonaFollajeEntity(
                             idZona = localZoneId,
