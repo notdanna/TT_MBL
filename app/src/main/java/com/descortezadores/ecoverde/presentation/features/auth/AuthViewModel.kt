@@ -6,7 +6,7 @@ import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.descortezadores.ecoverde.core.opencv.OpenCvInitializer
-import com.descortezadores.ecoverde.data.classification.TfliteBarkClassifier
+import com.descortezadores.ecoverde.domain.repository.BarkClassificationRepository
 import com.descortezadores.ecoverde.data.segmentation.ImageOverlayGenerator
 import com.descortezadores.ecoverde.data.segmentation.OpenCvColorSegmenter
 import com.descortezadores.ecoverde.data.segmentation.SyntheticForestSampleGenerator
@@ -48,7 +48,7 @@ class AuthViewModel @Inject constructor(
     private val openCvInitializer: OpenCvInitializer,
     private val openCvColorSegmenter: OpenCvColorSegmenter,
     private val imageOverlayGenerator: ImageOverlayGenerator,
-    private val tfliteBarkClassifier: TfliteBarkClassifier,
+    private val barkClassificationRepository: BarkClassificationRepository,
     private val forestMonitoringRepository: ForestMonitoringRepository
 ) : ViewModel() {
 
@@ -363,8 +363,14 @@ class AuthViewModel @Inject constructor(
             try {
                 val startTotal = SystemClock.elapsedRealtime()
 
-                // Ejecución concurrente en el dispositivo: TFLite + OpenCV (RN-46, PI-13)
-                val tfliteDeferred = async { tfliteBarkClassifier.classifyBitmap(bitmap) }
+                // Inferencia concurrente: IA híbrida (solo corteza) + OpenCV
+                val tfliteDeferred = async {
+                    if (sampleType == SampleType.CORTEZA) {
+                        barkClassificationRepository.classifyBark(bitmap)
+                    } else {
+                        Result.failure(IllegalStateException("No aplica a follaje"))
+                    }
+                }
                 val openCvDeferred = async {
                     val masks = openCvColorSegmenter.segmentBitmapToMasks(bitmap, sampleType)
                     try {
@@ -552,7 +558,7 @@ class AuthViewModel @Inject constructor(
                     confidence = 0.85,
                     rawInfestationProbability = 0.15,
                     isOfflineExecution = true,
-                    executionBadgeLabel = "Offline",
+                    executionBadgeLabel = "LOCAL",
                     visualEvidencesDetected = emptyList(),
                     recommendation = "Monitoreo preventivo",
                     inferenceTimeMs = 15L

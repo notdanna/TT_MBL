@@ -1,6 +1,9 @@
 package com.descortezadores.ecoverde
 
+import com.descortezadores.ecoverde.domain.model.ChromaticAnalysisResult
 import com.descortezadores.ecoverde.domain.model.ClassificationOutcome
+import com.descortezadores.ecoverde.domain.model.DiagnosticCategory
+import com.descortezadores.ecoverde.domain.model.FoliageZoneRecord
 import com.descortezadores.ecoverde.domain.model.SampleType
 import com.descortezadores.ecoverde.domain.model.SyncStatus
 import com.descortezadores.ecoverde.domain.model.TargetAssociation
@@ -9,7 +12,9 @@ import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResul
 import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResultUiState
 import com.descortezadores.ecoverde.presentation.features.analysis.EcoVerdeMainDestination
 import com.descortezadores.ecoverde.presentation.features.analysis.HistoryFilterOption
+import com.descortezadores.ecoverde.presentation.features.analysis.HomeWorkTab
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
@@ -189,5 +194,124 @@ class Phase5PresentationUiStateTest {
         assertEquals(67, prog.healthyHistoryPercentage)
         assertEquals(33, prog.infestedHistoryPercentage)
         assertEquals(ClassificationOutcome.SANO, prog.currentStatus)
+    }
+
+    @Test
+    fun `zoneProgressionList agrupa capturas por zona y calcula porcentaje promedio de salud foliar`() {
+        val zonaBosque = FoliageZoneRecord(
+            idZona = "zona-bosque-norte",
+            nombreZona = "Bosque Norte Cuadrante A",
+            latitudCentro = 19.4218,
+            longitudCentro = -99.1820,
+            radioMetros = 50.0,
+            fechaRegistroIso = "2026-10-16T18:00:00Z",
+            descripcion = "Zona de monitoreo aéreo dosel",
+            idCuenta = "brig-1",
+            idDispositivo = "dev-1"
+        )
+
+        val chromatic1 = ChromaticAnalysisResult(
+            analysisId = "cap-follaje-1",
+            sampleType = SampleType.FOLLAJE,
+            originalImagePath = "/tmp/f1.jpg",
+            segmentedOverlayImagePath = "/tmp/ovl_f1.jpg",
+            totalPixelsAnalyzed = 10000,
+            bands = emptyList(),
+            pctSano = 0.80,
+            pctRegular = 0.15,
+            pctDanado = 0.05,
+            pctIncierto = 0.0,
+            biologicalSeverityScore = 0.10,
+            severityLevel = com.descortezadores.ecoverde.domain.model.BiologicalSeverityLevel.BAJA,
+            dominantCategory = DiagnosticCategory.SANO,
+            timestampMillis = 1000L
+        )
+
+        val chromatic2 = ChromaticAnalysisResult(
+            analysisId = "cap-follaje-2",
+            sampleType = SampleType.FOLLAJE,
+            originalImagePath = "/tmp/f2.jpg",
+            segmentedOverlayImagePath = "/tmp/ovl_f2.jpg",
+            totalPixelsAnalyzed = 10000,
+            bands = emptyList(),
+            pctSano = 0.60,
+            pctRegular = 0.25,
+            pctDanado = 0.15,
+            pctIncierto = 0.0,
+            biologicalSeverityScore = 0.25,
+            severityLevel = com.descortezadores.ecoverde.domain.model.BiologicalSeverityLevel.MODERADA,
+            dominantCategory = DiagnosticCategory.SANO,
+            timestampMillis = 2000L
+        )
+
+        val captures = listOf(
+            SavedDetectionRecord(
+                idAnalisis = "cap-follaje-1",
+                brigadistaId = "brig-1",
+                idDispositivo = "dev-1",
+                sampleType = SampleType.FOLLAJE,
+                classificationOutcome = ClassificationOutcome.SANO,
+                confidence = 0.85,
+                rawTfliteProbability = 0.15,
+                latitud = 19.4218,
+                longitud = -99.1820,
+                fechaCapturaIso = "2026-10-16T18:10:00Z",
+                fechaCapturaMillis = 1000L,
+                observaciones = "Follaje denso y verde",
+                targetAssociation = TargetAssociation.FollajeTarget.ExistingZone(
+                    idZona = "zona-bosque-norte",
+                    nombreZona = "Bosque Norte Cuadrante A",
+                    radioMetros = 50.0
+                ),
+                originalImagePath = "/tmp/f1.jpg",
+                overlayImagePath = "/tmp/ovl_f1.jpg",
+                syncStatus = SyncStatus.SINCRONIZADO,
+                chromaticResult = chromatic1
+            ),
+            SavedDetectionRecord(
+                idAnalisis = "cap-follaje-2",
+                brigadistaId = "brig-1",
+                idDispositivo = "dev-1",
+                sampleType = SampleType.FOLLAJE,
+                classificationOutcome = ClassificationOutcome.SANO,
+                confidence = 0.80,
+                rawTfliteProbability = 0.20,
+                latitud = 19.4218,
+                longitud = -99.1820,
+                fechaCapturaIso = "2026-10-16T19:10:00Z",
+                fechaCapturaMillis = 2000L,
+                observaciones = "Ligera defoliación",
+                targetAssociation = TargetAssociation.FollajeTarget.ExistingZone(
+                    idZona = "zona-bosque-norte",
+                    nombreZona = "Bosque Norte Cuadrante A",
+                    radioMetros = 50.0
+                ),
+                originalImagePath = "/tmp/f2.jpg",
+                overlayImagePath = "/tmp/ovl_f2.jpg",
+                syncStatus = SyncStatus.PENDIENTE,
+                chromaticResult = chromatic2
+            )
+        )
+
+        val state = AnalysisResultUiState(
+            availableZones = listOf(zonaBosque),
+            allRecords = captures,
+            homeWorkTab = HomeWorkTab.ZONAS_FOLLAJE,
+            selectedZoneDetailId = "zona-bosque-norte"
+        )
+
+        val prog = state.selectedZoneProgression
+        assertNotNull(prog)
+        assertEquals("Bosque Norte Cuadrante A", prog!!.zone.nombreZona)
+        assertEquals(2, prog.totalCapturas)
+        // Promedio de pctSano: (0.80 + 0.60) / 2 = 0.70 -> 70%
+        assertEquals(70, prog.avgPctSano)
+        // Promedio de pctRegular: (0.15 + 0.25) / 2 = 0.20 -> 20%
+        assertEquals(20, prog.avgPctRegular)
+        // Promedio de pctDanado: (0.05 + 0.15) / 2 = 0.10 -> 10%
+        assertEquals(10, prog.avgPctDanado)
+        // sync status: 1 sincronizado, 1 pendiente -> SyncStatus.PENDIENTE
+        assertEquals(SyncStatus.PENDIENTE, prog.syncStatus)
+        assertEquals(1, state.filteredZoneProgressions.size)
     }
 }

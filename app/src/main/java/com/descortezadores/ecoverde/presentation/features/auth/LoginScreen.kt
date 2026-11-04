@@ -229,20 +229,16 @@ fun LoginAndSessionScreen(
                     }
                 }
 
-                // Transición animada entre modos de autenticación (Login, Recuperar, Restablecer)
+                // Transición animada direccional entre modos de autenticación (Login, Recuperar, Restablecer)
                 AnimatedContent(
                     targetState = uiState.authMode,
                     transitionSpec = {
-                        (fadeIn(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                            scaleIn(
-                                initialScale = 0.96f,
-                                animationSpec = EcoVerdeMotion.expressiveSpatialSpring()
-                            )) togetherWith
-                            (fadeOut(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                                scaleOut(
-                                    targetScale = 0.96f,
-                                    animationSpec = EcoVerdeMotion.standardSpatialSpring()
-                                ))
+                        val forward = when {
+                            initialState == AuthMode.LOGIN -> true
+                            targetState == AuthMode.LOGIN -> false
+                            else -> targetState == AuthMode.RESET_PASSWORD
+                        }
+                        EcoVerdeMotion.sharedAxisX(forward = forward, slideDistance = 90)
                     },
                     label = "AuthModeAnimatedContent",
                     modifier = Modifier.fillMaxWidth()

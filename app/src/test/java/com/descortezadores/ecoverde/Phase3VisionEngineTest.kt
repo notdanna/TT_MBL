@@ -103,4 +103,53 @@ class Phase3VisionEngineTest {
         assertTrue(abs((ratios[DiagnosticCategory.INCIERTO] ?: 0.0) - 0.05) < 0.005)
         assertEquals(1.0, sum, 0.0001)
     }
+
+    @Test
+    fun `Inferencia hibrida mapea correctamente modelo Nube y badges NUBE y LOCAL`() {
+        val cloudDto = com.descortezadores.ecoverde.data.remote.dto.CloudClassificationResponseDto(
+            resultado = "infestado",
+            confianza = 0.942,
+            probabilidadInfestado = 0.942,
+            umbral = 0.50,
+            tiempoInferenciaMs = 210,
+            modelo = "classifier_full (EfficientNet-B3 Full Precision)"
+        )
+
+        val (outcome, confidence) = com.descortezadores.ecoverde.domain.model.ClassificationOutcome.evaluateFromProbability(
+            infestationProbability = cloudDto.probabilidadInfestado,
+            decisionThreshold = cloudDto.umbral
+        )
+
+        assertEquals(com.descortezadores.ecoverde.domain.model.ClassificationOutcome.INFESTADO, outcome)
+        assertEquals(0.942, confidence, 0.001)
+
+        val cloudResult = com.descortezadores.ecoverde.domain.model.ClassificationResult(
+            outcome = outcome,
+            confidence = confidence,
+            rawInfestationProbability = cloudDto.probabilidadInfestado,
+            isOfflineExecution = false,
+            executionBadgeLabel = "NUBE",
+            visualEvidencesDetected = listOf("Galerías detectadas"),
+            recommendation = "Revisar árboles",
+            inferenceTimeMs = cloudDto.tiempoInferenciaMs
+        )
+
+        assertEquals("NUBE", cloudResult.executionBadgeLabel)
+        org.junit.Assert.assertFalse(cloudResult.isOfflineExecution)
+        assertEquals(210L, cloudResult.inferenceTimeMs)
+
+        val localResult = com.descortezadores.ecoverde.domain.model.ClassificationResult(
+            outcome = outcome,
+            confidence = confidence,
+            rawInfestationProbability = cloudDto.probabilidadInfestado,
+            isOfflineExecution = true,
+            executionBadgeLabel = "LOCAL",
+            visualEvidencesDetected = listOf("Galerías detectadas"),
+            recommendation = "Revisar árboles",
+            inferenceTimeMs = 350L
+        )
+
+        assertEquals("LOCAL", localResult.executionBadgeLabel)
+        assertTrue(localResult.isOfflineExecution)
+    }
 }
