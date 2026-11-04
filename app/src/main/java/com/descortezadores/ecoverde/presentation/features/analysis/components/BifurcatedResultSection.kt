@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
@@ -233,7 +234,7 @@ private fun BarkResultSection(
                         color = cardTextColor.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = "MODO LOCAL",
+                            text = if (clf?.isOfflineExecution == false) "NUBE" else "LOCAL",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = cardTextColor,
@@ -413,20 +414,14 @@ private fun BarkResultSection(
             }
         }
 
-        // Pestañas inferiores con divulgación progresiva
+        // Pestañas inferiores con divulgación progresiva direccional
         AnimatedContent(
             targetState = uiState.selectedTab,
             transitionSpec = {
-                (fadeIn(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                    scaleIn(
-                        initialScale = 0.96f,
-                        animationSpec = EcoVerdeMotion.expressiveSpatialSpring()
-                    )) togetherWith
-                    (fadeOut(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                        scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = EcoVerdeMotion.standardSpatialSpring()
-                        ))
+                EcoVerdeMotion.sharedAxisX(
+                    forward = targetState == AnalysisResultTab.ANALISIS_COLOR,
+                    slideDistance = 80
+                )
             },
             label = "BarkTabContentAnimation"
         ) { tab ->
@@ -454,47 +449,62 @@ private fun BarkResultSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = onSaveAndFinishClick,
-                    enabled = !uiState.isSavingOffline,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    if (uiState.isSavingOffline) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
+                if (uiState.isInspectingHistoricalRecord) {
+                    OutlinedButton(
+                        onClick = onRepeatCaptureClick,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Guardando...")
-                    } else {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Guardar y finalizar",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("← Volver a lista", fontWeight = FontWeight.Bold)
                     }
-                }
+                } else {
+                    Button(
+                        onClick = onSaveAndFinishClick,
+                        enabled = !uiState.isSavingOffline,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        if (uiState.isSavingOffline) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardando...")
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Guardar y finalizar",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
-                OutlinedButton(
-                    onClick = onRepeatCaptureClick,
-                    shape = CircleShape,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Repetir captura")
+                    OutlinedButton(
+                        onClick = onRepeatCaptureClick,
+                        shape = CircleShape,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Repetir captura")
+                    }
                 }
             }
         }
@@ -514,6 +524,7 @@ private fun BarkManagementAndRegistryTab(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -605,6 +616,7 @@ private fun BarkChromaticAnalysisTab(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -694,6 +706,7 @@ private fun FoliageResultSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -710,7 +723,7 @@ private fun FoliageResultSection(
                         color = GreenPrimary.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = "MODO LOCAL",
+                            text = "LOCAL",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = GreenPrimary,
@@ -920,47 +933,62 @@ private fun FoliageResultSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = onSaveAndFinishClick,
-                    enabled = !uiState.isSavingOffline,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    if (uiState.isSavingOffline) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
+                if (uiState.isInspectingHistoricalRecord) {
+                    OutlinedButton(
+                        onClick = onRepeatCaptureClick,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Guardando zona...")
-                    } else {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Guardar zona y finalizar",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("← Volver a lista", fontWeight = FontWeight.Bold)
                     }
-                }
+                } else {
+                    Button(
+                        onClick = onSaveAndFinishClick,
+                        enabled = !uiState.isSavingOffline,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        if (uiState.isSavingOffline) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardando zona...")
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Guardar zona y finalizar",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
-                OutlinedButton(
-                    onClick = onRepeatCaptureClick,
-                    shape = CircleShape,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Repetir toma aérea")
+                    OutlinedButton(
+                        onClick = onRepeatCaptureClick,
+                        shape = CircleShape,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Repetir toma aérea")
+                    }
                 }
             }
         }

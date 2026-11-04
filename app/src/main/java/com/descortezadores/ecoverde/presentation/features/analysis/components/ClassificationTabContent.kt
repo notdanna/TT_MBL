@@ -130,6 +130,7 @@ fun ClassificationTabContent(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
             ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -259,6 +260,7 @@ fun ClassificationTabContent(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
@@ -334,12 +336,12 @@ fun ClassificationTabContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "TFLite (%): ${classificationResult.tfliteRawPercentage}%",
+                                text = "Probabilidad: ${classificationResult.tfliteRawPercentage}%",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Clase_TFLite: ${classificationResult.outcome.displayTitle}",
+                                text = "Diagnóstico: ${classificationResult.outcome.displayTitle}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = statusColor
@@ -403,6 +405,7 @@ fun ClassificationTabContent(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
             ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -697,7 +700,7 @@ fun ClassificationTabContent(
                                     shape = MaterialTheme.shapes.medium,
                                     label = {
                                         Text(
-                                            text = "${zone.nombreZona} (${zone.radioMetros.toInt()} m)",
+                                            text = zone.nombreZona,
                                             style = MaterialTheme.typography.labelSmall
                                         )
                                     },
@@ -706,27 +709,15 @@ fun ClassificationTabContent(
                             }
                         }
                     } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = newZoneName,
-                                onValueChange = onNewZoneNameChanged,
-                                label = { Text("Nombre de Zona Follaje") },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.medium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = newZoneRadiusMeters,
-                                onValueChange = onNewZoneRadiusChanged,
-                                label = { Text("Radio (m)") },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.medium,
-                                modifier = Modifier.weight(0.45f)
-                            )
-                        }
+                        OutlinedTextField(
+                            value = newZoneName,
+                            onValueChange = onNewZoneNameChanged,
+                            label = { Text("Nombre de la Zona de Follaje") },
+                            placeholder = { Text("Ej. Cuadrante Norte A") },
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 

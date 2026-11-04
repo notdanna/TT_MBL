@@ -139,20 +139,12 @@ fun CaptureWizardSection(
             onCancelClick = onCancelWizardClick
         )
 
-        // Contenido animado del paso actual
+        // Contenido animado direccional del paso actual
         AnimatedContent(
             targetState = uiState.wizardStep,
             transitionSpec = {
-                (fadeIn(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                    scaleIn(
-                        initialScale = 0.96f,
-                        animationSpec = EcoVerdeMotion.expressiveSpatialSpring()
-                    )) togetherWith
-                    (fadeOut(animationSpec = EcoVerdeMotion.interactiveSpring()) +
-                        scaleOut(
-                            targetScale = 0.96f,
-                            animationSpec = EcoVerdeMotion.standardSpatialSpring()
-                        ))
+                val forward = targetState.stepNumber >= initialState.stepNumber
+                EcoVerdeMotion.sharedAxisX(forward = forward, slideDistance = 100)
             },
             label = "WizardStepAnimatedContent"
         ) { step ->
@@ -226,6 +218,7 @@ private fun WizardStepperHeader(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -478,6 +471,11 @@ private fun Step2VinculacionTerritorial(
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             TargetAssociationMode.entries.forEachIndexed { index, mode ->
                 val selected = uiState.associationMode == mode
+                val label = if (isCorteza) {
+                    mode.label
+                } else {
+                    if (mode == TargetAssociationMode.EXISTENTE) "Zona existente" else "Dar de alta nueva zona"
+                }
                 SegmentedButton(
                     selected = selected,
                     onClick = { onAssociationModeChanged(mode) },
@@ -487,7 +485,7 @@ private fun Step2VinculacionTerritorial(
                     ),
                     label = {
                         Text(
-                            text = mode.label,
+                            text = label,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -503,6 +501,7 @@ private fun Step2VinculacionTerritorial(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
@@ -585,6 +584,7 @@ private fun Step2VinculacionTerritorial(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
@@ -671,41 +671,111 @@ private fun Step2VinculacionTerritorial(
             }
         } else {
             // MODO FOLLAJE: Selector o alta rápida de Zona de Follaje
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            if (uiState.associationMode == TargetAssociationMode.EXISTENTE) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Text(
-                        text = "Zona de Follaje / Polígono de Vuelo",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = GreenPrimary
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Seleccionar Zona de Follaje Existente",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenPrimary
+                        )
 
-                    OutlinedTextField(
-                        value = uiState.newZoneName,
-                        onValueChange = onNewZoneNameChanged,
-                        label = { Text("Nombre de la zona de dosel") },
-                        placeholder = { Text("Ej. Zona II - Calzada de los Poetas") },
-                        shape = MaterialTheme.shapes.medium,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        if (uiState.availableZones.isEmpty()) {
+                            Text(
+                                text = "No hay zonas de follaje registradas previamente. Cambia a 'Dar de alta nueva zona' para registrar una.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            uiState.availableZones.forEach { zone ->
+                                val isSelected = zone.idZona == uiState.selectedZoneId
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = if (isSelected) GreenPrimary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) GreenPrimary else MaterialTheme.colorScheme.outlineVariant
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(MaterialTheme.shapes.medium)
+                                        .clickable { onSelectExistingZone(zone.idZona) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = zone.nombreZona,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = zone.descripcion ?: "Zona aérea de monitoreo",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = GreenPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // DAR DE ALTA NUEVA ZONA
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Dar de alta nueva zona de dosel",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenPrimary
+                        )
+                        Text(
+                            text = "Se asociará automáticamente a las coordenadas GPS de la toma o sobrevuelo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                    OutlinedTextField(
-                        value = uiState.newZoneRadiusMeters,
-                        onValueChange = onNewZoneRadiusChanged,
-                        label = { Text("Radio de cobertura aproximado (metros)") },
-                        shape = MaterialTheme.shapes.medium,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        OutlinedTextField(
+                            value = uiState.newZoneName,
+                            onValueChange = onNewZoneNameChanged,
+                            label = { Text("Nombre de la zona de dosel") },
+                            placeholder = { Text("Ej. Zona II - Calzada de los Poetas") },
+                            shape = MaterialTheme.shapes.medium,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
@@ -778,6 +848,7 @@ private fun Step3CapturaYEncuadre(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Box(

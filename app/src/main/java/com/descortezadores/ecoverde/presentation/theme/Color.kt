@@ -32,7 +32,7 @@ val ChromaticFoliageRegular = Color(0xFF9ACD32)   // Verde-amarillento limón (#
 val ChromaticFoliageHealthy = Color(0xFF2E7D32)   // Verde vivo (#2E7D32)
 val ChromaticFoliageUncertain = Color(0xFF9E9E9E) // Gris humo (#9E9E9E)
 
-val BackgroundLight = Color(0xFFF6FBF6)
+val BackgroundLight = Color(0xFFFFFFFF) // Blanco puro
 val SurfaceLight = Color(0xFFFFFFFF)
 val BackgroundDark = Color(0xFF101511)
 val SurfaceDark = Color(0xFF181E19)

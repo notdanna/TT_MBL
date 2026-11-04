@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.descortezadores.ecoverde.domain.model.ClassificationOutcome
+import com.descortezadores.ecoverde.domain.model.SampleType
 import com.descortezadores.ecoverde.domain.model.SyncStatus
 import com.descortezadores.ecoverde.domain.model.TargetAssociation
 import com.descortezadores.ecoverde.domain.repository.SavedDetectionRecord
@@ -86,6 +87,7 @@ fun AlertsAndSyncSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -240,6 +242,7 @@ fun AlertsAndSyncSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -413,6 +416,7 @@ fun AlertsAndSyncSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -508,13 +512,39 @@ private fun HistoricalRecordRow(
                         .background(statusColor)
                 )
                 Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (record.sampleType == SampleType.CORTEZA) GreenPrimary.copy(alpha = 0.15f) else Color(0xFF00796B).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (record.sampleType == SampleType.CORTEZA) "Corteza" else "Follaje",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (record.sampleType == SampleType.CORTEZA) GreenPrimary else Color(0xFF00796B),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = "$targetLabel • ${record.classificationOutcome.displayTitle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    val subtitle = if (record.sampleType == SampleType.CORTEZA) {
+                        "Certeza: ${(record.confidence * 100).toInt()}% • Fecha: ${record.fechaCapturaIso.take(16).replace('T', ' ')}"
+                    } else {
+                        val chrom = record.chromaticResult
+                        val s = ((chrom?.pctSano ?: 0.0) * 100).toInt()
+                        val r = ((chrom?.pctRegular ?: 0.0) * 100).toInt()
+                        val d = ((chrom?.pctDanado ?: 0.0) * 100).toInt()
+                        "Dosel: $s% sano, $r% estrés, $d% daño • ${record.fechaCapturaIso.take(16).replace('T', ' ')}"
+                    }
                     Text(
-                        text = "$targetLabel • ${record.classificationOutcome.displayTitle}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Certeza: ${(record.confidence * 100).toInt()}% • Fecha: ${record.fechaCapturaIso.take(16).replace('T', ' ')}",
+                        text = subtitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
