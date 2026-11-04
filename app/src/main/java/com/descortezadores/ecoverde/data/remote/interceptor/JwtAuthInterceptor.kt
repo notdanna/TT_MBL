@@ -54,7 +54,8 @@ class JwtAuthInterceptor @Inject constructor(
             path.endsWith("/api/v1/health") ||
             path.endsWith("/api/v1/auth/recuperar-password") ||
             path.endsWith("/api/v1/auth/restablecer-password") ||
-            path.contains("/api/v1/modelos/")
+            path.contains("/api/v1/modelos/") ||
+            path.contains("/api/v1/analisis/clasificar")
 
         if (!isPublicEndpoint && originalRequest.header("Authorization") == null) {
             var token = runBlocking { sessionPreferencesManager.getAccessToken() }

@@ -2,6 +2,7 @@ package com.descortezadores.ecoverde.data.remote.api
 
 import com.descortezadores.ecoverde.data.remote.dto.AnalisisDetalleDto
 import com.descortezadores.ecoverde.data.remote.dto.ArbolDto
+import com.descortezadores.ecoverde.data.remote.dto.CloudClassificationResponseDto
 import com.descortezadores.ecoverde.data.remote.dto.DashboardEstadisticasDto
 import com.descortezadores.ecoverde.data.remote.dto.EvidenciaUploadResponseDto
 import com.descortezadores.ecoverde.data.remote.dto.FocoInfestacionDto
@@ -128,4 +129,14 @@ interface MonitoringApiService {
 
     @GET("api/v1/estadisticas/dashboard")
     suspend fun getDashboardEstadisticas(): Response<DashboardEstadisticasDto>
+
+    // -------------------------------------------------------------------------
+    // 7. Inferencia Cloud de Alta Precisión (EfficientNet-B3 Full Precision)
+    // -------------------------------------------------------------------------
+
+    @Multipart
+    @POST("api/v1/analisis/clasificar")
+    suspend fun clasificarCortezaCloud(
+        @Part imagen: MultipartBody.Part
+    ): Response<CloudClassificationResponseDto>
 }

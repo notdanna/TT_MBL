@@ -96,7 +96,7 @@ class TfliteBarkClassifier @Inject constructor(
                         confidence = classConfidence,
                         rawInfestationProbability = rawProb,
                         isOfflineExecution = true,
-                        executionBadgeLabel = "Offline", // RN-22
+                        executionBadgeLabel = "LOCAL",
                         visualEvidencesDetected = visualEvidences,
                         recommendation = recommendation,
                         inferenceTimeMs = inferenceTimeMs

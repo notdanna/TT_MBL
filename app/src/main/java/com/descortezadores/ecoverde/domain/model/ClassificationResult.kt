@@ -74,7 +74,7 @@ data class ClassificationResult(
     val confidence: Double,
     val rawInfestationProbability: Double,
     val isOfflineExecution: Boolean = true,
-    val executionBadgeLabel: String = "Offline", // RN-22: Etiquetado explícitamente "Offline"
+    val executionBadgeLabel: String = "LOCAL",
     val visualEvidencesDetected: List<String>,
     val recommendation: String,
     val inferenceTimeMs: Long
