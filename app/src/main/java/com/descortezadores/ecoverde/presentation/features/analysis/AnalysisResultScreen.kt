@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Forest
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NearMe
@@ -129,6 +130,7 @@ import com.descortezadores.ecoverde.domain.model.TargetAssociation
 import com.descortezadores.ecoverde.domain.model.TreeRecord
 import com.descortezadores.ecoverde.domain.model.auth.BrigadistaSession
 import com.descortezadores.ecoverde.domain.repository.SavedDetectionRecord
+import com.descortezadores.ecoverde.presentation.features.about.TermsAndConditionsScreen
 import com.descortezadores.ecoverde.presentation.features.analysis.components.AlertsAndSyncSection
 import com.descortezadores.ecoverde.presentation.features.analysis.components.CaptureWizardSection
 import com.descortezadores.ecoverde.presentation.features.analysis.components.OfflineForestMapLibreView
@@ -225,6 +227,15 @@ fun AnalysisResultScreen(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+    var showTermsScreen by remember { mutableStateOf(false) }
+
+    if (showTermsScreen) {
+        TermsAndConditionsScreen(
+            onBackClick = { showTermsScreen = false }
+        )
+        return
+    }
 
     val canHandlePredictiveBack = uiState.selectedTreeProgression != null ||
         uiState.selectedZoneProgression != null ||
@@ -960,7 +971,8 @@ fun AnalysisResultScreen(
                                 uiState = uiState,
                                 onSyncNowClick = onSyncNowClick,
                                 onClearLocalDatabaseClick = onClearLocalDatabaseClick,
-                                onLogoutClick = onLogoutClick
+                                onLogoutClick = onLogoutClick,
+                                onOpenTermsClick = { showTermsScreen = true }
                             )
                         }
                     }
@@ -2428,7 +2440,8 @@ private fun BrigadistaProfileSection(
     uiState: AnalysisResultUiState,
     onSyncNowClick: () -> Unit,
     onClearLocalDatabaseClick: () -> Unit,
-    onLogoutClick: () -> Unit
+    onLogoutClick: () -> Unit,
+    onOpenTermsClick: () -> Unit
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -2524,6 +2537,30 @@ private fun BrigadistaProfileSection(
             ProfileFieldRow("Total de capturas acumuladas", "${uiState.allRecords.size}")
             ProfileFieldRow("Árboles registrados", "${uiState.treeProgressionList.size}")
             ProfileFieldRow("Pendientes de sincronización", "${uiState.daySummary.pendientesSincronizacion}")
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Text(
+                text = "Políticas y Acerca de",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = GreenPrimary
+            )
+            ProfileFieldRow("Versión del sistema", "1.0.0 (Build 2026-B161)")
+            ProfileFieldRow("Geolocalización", "GPS obligatorio para radio de 100 m (NOM-019)")
+            ProfileFieldRow("Privacidad de imágenes", "Uso exclusivo modelo IA (No compartición)")
+
+            OutlinedButton(
+                onClick = onOpenTermsClick,
+                shape = CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GreenPrimary),
+                border = BorderStroke(1.dp, GreenPrimary),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Términos, Privacidad y Acerca de", fontWeight = FontWeight.SemiBold)
+            }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 

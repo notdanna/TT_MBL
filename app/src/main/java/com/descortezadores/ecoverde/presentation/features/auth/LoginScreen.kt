@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Forest
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -56,6 +57,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.descortezadores.ecoverde.domain.model.DiagnosticCategory
 import com.descortezadores.ecoverde.domain.model.SampleType
+import com.descortezadores.ecoverde.presentation.features.about.TermsAndConditionsScreen
 import com.descortezadores.ecoverde.presentation.theme.EcoVerdeMotion
 import com.descortezadores.ecoverde.presentation.theme.GreenPrimary
 import com.descortezadores.ecoverde.presentation.theme.StatusHealthyGreen
@@ -109,182 +115,203 @@ fun LoginAndSessionScreen(
     onSaveDetectionToRoomClick: () -> Unit = {},
     onSyncWithBackendClick: () -> Unit = {}
 ) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Spacer(modifier = Modifier.height(12.dp))
+    var showTermsScreen by remember { mutableStateOf(false) }
 
-                // Logotipo del proyecto ("EcoVerde") con el verde bosque primario (#2D6A3E)
-                Box(
+    AnimatedContent(
+        targetState = showTermsScreen,
+        transitionSpec = {
+            if (targetState) {
+                EcoVerdeMotion.modalOpenTransform()
+            } else {
+                EcoVerdeMotion.modalCloseTransform()
+            }
+        },
+        label = "AuthTermsAnimatedContent"
+    ) { isTermsVisible ->
+        if (isTermsVisible) {
+            TermsAndConditionsScreen(
+                onBackClick = { showTermsScreen = false }
+            )
+        } else {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                contentWindowInsets = WindowInsets.safeDrawing,
+                containerColor = MaterialTheme.colorScheme.background
+            ) { innerPadding ->
+                Column(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(GreenPrimary),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .consumeWindowInsets(innerPadding)
+                        .imePadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Forest,
-                        contentDescription = "Logotipo EcoVerde",
-                        tint = Color.White,
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "EcoVerde",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = GreenPrimary
-                    )
-                    Text(
-                        text = "Detección Fitosanitaria de Plagas Forestales",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Bosque de Chapultepec • Ciudad de México",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-
-                // Mensajes de error o informativos
-                uiState.errorMessage?.let { msg ->
-                    Card(
-                        shape = MaterialTheme.shapes.medium,
-                        colors = CardDefaults.cardColors(
-                            containerColor = StatusInfestedRed.copy(alpha = 0.12f)
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Logotipo del proyecto ("EcoVerde") con el verde bosque primario (#2D6A3E)
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape)
+                                .background(GreenPrimary),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Error,
-                                contentDescription = null,
-                                tint = StatusInfestedRed,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.Forest,
+                                contentDescription = "Logotipo EcoVerde",
+                                tint = Color.White,
+                                modifier = Modifier.size(44.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = msg,
-                                color = StatusInfestedRed,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium
+                                text = "EcoVerde",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = GreenPrimary
                             )
-                        }
-                    }
-                }
-
-                uiState.infoMessage?.let { msg ->
-                    Card(
-                        shape = MaterialTheme.shapes.medium,
-                        colors = CardDefaults.cardColors(
-                            containerColor = StatusHealthyGreen.copy(alpha = 0.12f)
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = StatusHealthyGreen,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = msg,
-                                color = StatusHealthyGreen,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium
+                                text = "Detección Fitosanitaria de Plagas Forestales",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Bosque de Chapultepec • Ciudad de México",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
                             )
                         }
-                    }
-                }
 
-                // Transición animada direccional entre modos de autenticación (Login, Recuperar, Restablecer)
-                AnimatedContent(
-                    targetState = uiState.authMode,
-                    transitionSpec = {
-                        val forward = when {
-                            initialState == AuthMode.LOGIN -> true
-                            targetState == AuthMode.LOGIN -> false
-                            else -> targetState == AuthMode.RESET_PASSWORD
+                        // Mensajes de error o informativos
+                        uiState.errorMessage?.let { msg ->
+                            Card(
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = StatusInfestedRed.copy(alpha = 0.12f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Error,
+                                        contentDescription = null,
+                                        tint = StatusInfestedRed,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = msg,
+                                        color = StatusInfestedRed,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
-                        EcoVerdeMotion.sharedAxisX(forward = forward, slideDistance = 90)
-                    },
-                    label = "AuthModeAnimatedContent",
-                    modifier = Modifier.fillMaxWidth()
-                ) { mode ->
-                    when (mode) {
-                        AuthMode.LOGIN -> LoginFormCleanCard(
-                            correo = uiState.correo,
-                            password = uiState.password,
-                            isLoading = uiState.isLoading,
-                            onCorreoChanged = onCorreoChanged,
-                            onPasswordChanged = onPasswordChanged,
-                            onLoginClick = onLoginClick,
-                            onQuickOfflineSessionClick = onQuickOfflineSessionClick,
-                            onForgotPasswordClick = { onSwitchMode(AuthMode.RECOVER_PASSWORD) }
-                        )
 
-                        AuthMode.RECOVER_PASSWORD -> RecoverPasswordCleanCard(
-                            correo = uiState.correo,
-                            isLoading = uiState.isLoading,
-                            onCorreoChanged = onCorreoChanged,
-                            onRequestRecoveryClick = onRequestRecoveryClick,
-                            onBackToLoginClick = { onSwitchMode(AuthMode.LOGIN) }
-                        )
+                        uiState.infoMessage?.let { msg ->
+                            Card(
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = StatusHealthyGreen.copy(alpha = 0.12f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = StatusHealthyGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = msg,
+                                        color = StatusHealthyGreen,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
 
-                        AuthMode.RESET_PASSWORD -> ResetPasswordCleanCard(
-                            token = uiState.recoveryToken,
-                            newPassword = uiState.newPassword,
-                            confirmNewPassword = uiState.confirmNewPassword,
-                            isLoading = uiState.isLoading,
-                            onTokenChanged = onRecoveryTokenChanged,
-                            onNewPasswordChanged = onNewPasswordChanged,
-                            onConfirmNewPasswordChanged = onConfirmNewPasswordChanged,
-                            onResetPasswordClick = onResetPasswordClick,
-                            onBackToLoginClick = { onSwitchMode(AuthMode.LOGIN) }
-                        )
+                        // Transición animada direccional entre modos de autenticación (Login, Recuperar, Restablecer)
+                        AnimatedContent(
+                            targetState = uiState.authMode,
+                            transitionSpec = {
+                                val forward = when {
+                                    initialState == AuthMode.LOGIN -> true
+                                    targetState == AuthMode.LOGIN -> false
+                                    else -> targetState == AuthMode.RESET_PASSWORD
+                                }
+                                EcoVerdeMotion.sharedAxisX(forward = forward, slideDistance = 90)
+                            },
+                            label = "AuthModeAnimatedContent",
+                            modifier = Modifier.fillMaxWidth()
+                        ) { mode ->
+                            when (mode) {
+                                AuthMode.LOGIN -> LoginFormCleanCard(
+                                    correo = uiState.correo,
+                                    password = uiState.password,
+                                    isLoading = uiState.isLoading,
+                                    onCorreoChanged = onCorreoChanged,
+                                    onPasswordChanged = onPasswordChanged,
+                                    onLoginClick = onLoginClick,
+                                    onQuickOfflineSessionClick = onQuickOfflineSessionClick,
+                                    onForgotPasswordClick = { onSwitchMode(AuthMode.RECOVER_PASSWORD) },
+                                    onOpenTermsClick = { showTermsScreen = true }
+                                )
+
+                                AuthMode.RECOVER_PASSWORD -> RecoverPasswordCleanCard(
+                                    correo = uiState.correo,
+                                    isLoading = uiState.isLoading,
+                                    onCorreoChanged = onCorreoChanged,
+                                    onRequestRecoveryClick = onRequestRecoveryClick,
+                                    onBackToLoginClick = { onSwitchMode(AuthMode.LOGIN) }
+                                )
+
+                                AuthMode.RESET_PASSWORD -> ResetPasswordCleanCard(
+                                    token = uiState.recoveryToken,
+                                    newPassword = uiState.newPassword,
+                                    confirmNewPassword = uiState.confirmNewPassword,
+                                    isLoading = uiState.isLoading,
+                                    onTokenChanged = onRecoveryTokenChanged,
+                                    onNewPasswordChanged = onNewPasswordChanged,
+                                    onConfirmNewPasswordChanged = onConfirmNewPasswordChanged,
+                                    onResetPasswordClick = onResetPasswordClick,
+                                    onBackToLoginClick = { onSwitchMode(AuthMode.LOGIN) }
+                                )
+                            }
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Pie con indicador de estado de conectividad ("Modo local listo / Servidor conectado")
+                    ConnectivityFooterBanner(
+                        isBackendReachable = uiState.isBackendReachable,
+                        onRefreshClick = onRefreshInfrastructureClick
+                    )
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Pie con indicador de estado de conectividad ("Modo local listo / Servidor conectado")
-            ConnectivityFooterBanner(
-                isBackendReachable = uiState.isBackendReachable,
-                onRefreshClick = onRefreshInfrastructureClick
-            )
         }
     }
 }
@@ -301,7 +328,8 @@ private fun LoginFormCleanCard(
     onPasswordChanged: (String) -> Unit,
     onLoginClick: () -> Unit,
     onQuickOfflineSessionClick: () -> Unit,
-    onForgotPasswordClick: () -> Unit
+    onForgotPasswordClick: () -> Unit,
+    onOpenTermsClick: () -> Unit = {}
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -416,6 +444,25 @@ private fun LoginFormCleanCard(
                 Text(
                     text = "Acceso Rápido Brigadista Offline",
                     style = MaterialTheme.typography.labelMedium
+                )
+            }
+
+            // Enlace a Términos, Privacidad y Acerca de
+            TextButton(
+                onClick = onOpenTermsClick,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Términos, Privacidad y Acerca de",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
