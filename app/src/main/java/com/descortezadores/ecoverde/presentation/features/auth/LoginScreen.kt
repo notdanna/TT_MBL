@@ -7,6 +7,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +70,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.descortezadores.ecoverde.domain.model.DiagnosticCategory
@@ -369,6 +372,8 @@ private fun LoginFormCleanCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            var showPassword by remember { mutableStateOf(false) }
+
             // Campo 2: Contraseña
             OutlinedTextField(
                 value = password,
@@ -381,12 +386,30 @@ private fun LoginFormCleanCard(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showPassword = !showPassword },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = showPassword,
+                    onCheckedChange = { showPassword = it }
+                )
+                Text(
+                    text = "Mostrar contraseña",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             // Botón primario de ancho completo: Iniciar sesión
             Button(
@@ -581,12 +604,14 @@ private fun ResetPasswordCleanCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            var showResetPasswords by remember { mutableStateOf(false) }
+
             OutlinedTextField(
                 value = newPassword,
                 onValueChange = onNewPasswordChanged,
                 label = { Text("Nueva contraseña") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showResetPasswords) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth()
@@ -597,11 +622,29 @@ private fun ResetPasswordCleanCard(
                 onValueChange = onConfirmNewPasswordChanged,
                 label = { Text("Confirmar contraseña") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (showResetPasswords) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showResetPasswords = !showResetPasswords },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = showResetPasswords,
+                    onCheckedChange = { showResetPasswords = it }
+                )
+                Text(
+                    text = "Mostrar contraseña",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Button(
                 onClick = onResetPasswordClick,

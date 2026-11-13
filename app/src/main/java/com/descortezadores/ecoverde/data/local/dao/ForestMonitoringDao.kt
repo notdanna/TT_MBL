@@ -27,6 +27,9 @@ interface ForestMonitoringDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAnalisis(entity: AnalisisEntity)
 
+    @Query("UPDATE analisis SET observaciones = :observaciones WHERE id_analisis = :idAnalisis")
+    suspend fun updateAnalisisObservations(idAnalisis: String, observaciones: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAnalisisCromatico(entity: AnalisisCromaticoEntity)
 

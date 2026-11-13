@@ -5,21 +5,25 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.descortezadores.ecoverde.domain.model.auth.BrigadistaSession
 import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResultScreen
 import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResultViewModel
 import com.descortezadores.ecoverde.presentation.features.auth.AuthViewModel
 import com.descortezadores.ecoverde.presentation.features.auth.LoginAndSessionScreen
 import com.descortezadores.ecoverde.presentation.theme.EcoVerdeMotion
 import com.descortezadores.ecoverde.presentation.theme.EcoVerdeTheme
+import com.descortezadores.ecoverde.presentation.theme.GreenPrimary
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -41,28 +45,41 @@ class MainActivity : ComponentActivity() {
                 val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
                 val activeSession = authUiState.activeSession
 
+                val rootState = when {
+                    authUiState.isCheckingSession -> RootScreenState.CheckingSession
+                    activeSession != null -> RootScreenState.Main(activeSession)
+                    else -> RootScreenState.Login
+                }
+
                 AnimatedContent(
-                    targetState = activeSession,
+                    targetState = rootState,
                     transitionSpec = {
-                        if (targetState != null) {
-                            (fadeIn(animationSpec = tween(durationMillis = EcoVerdeMotion.DurationStandardEnter, easing = EcoVerdeMotion.EmphasizedDecelerateEasing)) +
-                                scaleIn(initialScale = 0.96f, animationSpec = tween(durationMillis = EcoVerdeMotion.DurationStandardEnter, easing = EcoVerdeMotion.EmphasizedDecelerateEasing)))
-                                .togetherWith(
-                                    fadeOut(animationSpec = tween(durationMillis = EcoVerdeMotion.DurationQuickExit, easing = EcoVerdeMotion.EmphasizedAccelerateEasing))
-                                )
-                        } else {
-                            (fadeIn(animationSpec = tween(durationMillis = EcoVerdeMotion.DurationStandardEnter, easing = EcoVerdeMotion.EmphasizedDecelerateEasing)))
-                                .togetherWith(
-                                    fadeOut(animationSpec = tween(durationMillis = EcoVerdeMotion.DurationQuickExit, easing = EcoVerdeMotion.EmphasizedAccelerateEasing)) +
-                                        scaleOut(targetScale = 0.96f, animationSpec = tween(durationMillis = EcoVerdeMotion.DurationQuickExit, easing = EcoVerdeMotion.EmphasizedAccelerateEasing))
-                                )
+                        when {
+                            initialState == RootScreenState.Login && targetState is RootScreenState.Main ->
+                                EcoVerdeMotion.modalOpenTransform()
+                            else -> EcoVerdeMotion.cleanCrossfade()
+                        }
+                    },
+                    contentKey = { state ->
+                        when (state) {
+                            RootScreenState.CheckingSession -> "checking"
+                            is RootScreenState.Main -> "main_${state.session.brigadistaId}"
+                            RootScreenState.Login -> "login"
                         }
                     },
                     label = "SessionMainScreenAnimatedContent"
-                ) { session ->
-                    if (session != null) {
-                        val analysisViewModel: AnalysisResultViewModel = hiltViewModel()
-                        val analysisUiState by analysisViewModel.uiState.collectAsStateWithLifecycle()
+                ) { state ->
+                    when (state) {
+                        RootScreenState.CheckingSession -> {
+                            StartupSessionSkeletonScreen()
+                        }
+
+                        is RootScreenState.Main -> {
+                            val session = state.session
+                            val analysisViewModel: AnalysisResultViewModel = hiltViewModel(
+                                key = "analysis_${session.brigadistaId}"
+                            )
+                            val analysisUiState by analysisViewModel.uiState.collectAsStateWithLifecycle()
 
                         AnalysisResultScreen(
                             session = session,
@@ -116,35 +133,61 @@ class MainActivity : ComponentActivity() {
                         onDeleteZoneClick = analysisViewModel::deleteZoneSection,
                         onSaveZoneObservationsClick = analysisViewModel::updateZoneObservations,
                         onFocusTreeOnMap = analysisViewModel::focusTreeOnMap,
+                        onFocusCoordinatesOnMap = analysisViewModel::focusCoordinatesOnMap,
                         onCenterOnUserGps = analysisViewModel::centerOnUserGps
                     )
-                } else {
-                    LoginAndSessionScreen(
-                        uiState = authUiState,
-                        onCorreoChanged = authViewModel::onCorreoChanged,
-                        onPasswordChanged = authViewModel::onPasswordChanged,
-                        onRecoveryTokenChanged = authViewModel::onRecoveryTokenChanged,
-                        onNewPasswordChanged = authViewModel::onNewPasswordChanged,
-                        onConfirmNewPasswordChanged = authViewModel::onConfirmNewPasswordChanged,
-                        onSwitchMode = authViewModel::switchMode,
-                        onLoginClick = authViewModel::login,
-                        onQuickOfflineSessionClick = authViewModel::startQuickOfflineBrigadistaSession,
-                        onRequestRecoveryClick = authViewModel::requestPasswordRecovery,
-                        onResetPasswordClick = authViewModel::resetPassword,
-                        onLogoutClick = authViewModel::logout,
-                        onRefreshInfrastructureClick = authViewModel::verifyInfrastructure,
-                        onRunSyntheticVisionClick = authViewModel::runPhase3SyntheticSampleAnalysis,
-                        onRunGalleryBitmapClick = authViewModel::runPhase3CustomBitmapAnalysis,
-                        onAlphaChanged = authViewModel::onPhase3AlphaChanged,
-                        onCategoryFilterSelected = authViewModel::onPhase3CategoryFilterSelected,
-                        onPhase4TargetNameChanged = authViewModel::onPhase4TargetNameChanged,
-                        onPhase4ObservationsChanged = authViewModel::onPhase4ObservationsChanged,
-                        onSaveDetectionToRoomClick = authViewModel::saveCurrentAnalysisToRoom,
-                        onSyncWithBackendClick = authViewModel::syncWithBackendNow
-                    )
+                        }
+
+                        RootScreenState.Login -> {
+                            LoginAndSessionScreen(
+                                uiState = authUiState,
+                                onCorreoChanged = authViewModel::onCorreoChanged,
+                                onPasswordChanged = authViewModel::onPasswordChanged,
+                                onRecoveryTokenChanged = authViewModel::onRecoveryTokenChanged,
+                                onNewPasswordChanged = authViewModel::onNewPasswordChanged,
+                                onConfirmNewPasswordChanged = authViewModel::onConfirmNewPasswordChanged,
+                                onSwitchMode = authViewModel::switchMode,
+                                onLoginClick = authViewModel::login,
+                                onQuickOfflineSessionClick = authViewModel::startQuickOfflineBrigadistaSession,
+                                onRequestRecoveryClick = authViewModel::requestPasswordRecovery,
+                                onResetPasswordClick = authViewModel::resetPassword,
+                                onLogoutClick = authViewModel::logout,
+                                onRefreshInfrastructureClick = authViewModel::verifyInfrastructure,
+                                onRunSyntheticVisionClick = authViewModel::runPhase3SyntheticSampleAnalysis,
+                                onRunGalleryBitmapClick = authViewModel::runPhase3CustomBitmapAnalysis,
+                                onAlphaChanged = authViewModel::onPhase3AlphaChanged,
+                                onCategoryFilterSelected = authViewModel::onPhase3CategoryFilterSelected,
+                                onPhase4TargetNameChanged = authViewModel::onPhase4TargetNameChanged,
+                                onPhase4ObservationsChanged = authViewModel::onPhase4ObservationsChanged,
+                                onSaveDetectionToRoomClick = authViewModel::saveCurrentAnalysisToRoom,
+                                onSyncWithBackendClick = authViewModel::syncWithBackendNow
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+private sealed interface RootScreenState {
+    data object CheckingSession : RootScreenState
+    data class Main(val session: BrigadistaSession) : RootScreenState
+    data object Login : RootScreenState
+}
+
+/**
+ * Pantalla de carga limpia y minimalista sobre fondo blanco (estilo Mihon LoadingScreen)
+ * mientras se valida la sesión guardada al abrir la app.
+ */
+@Composable
+private fun StartupSessionSkeletonScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = GreenPrimary)
+    }
 }

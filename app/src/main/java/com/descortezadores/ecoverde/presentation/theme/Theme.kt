@@ -3,6 +3,7 @@ package com.descortezadores.ecoverde.presentation.theme
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -103,27 +104,35 @@ object EcoVerdeMotion {
             targetOffsetX = { fullWidth -> (-sign * (slideDistance.coerceAtMost(fullWidth / 4))) }
         )
 
-        return enterTransition togetherWith exitTransition
+        return ContentTransform(
+            targetContentEnter = enterTransition,
+            initialContentExit = exitTransition,
+            sizeTransform = SizeTransform(clip = false)
+        )
     }
 
     /**
      * Transición Fade Through canónica de Material 3 para destinos principales.
-     * El destino saliente se desvanece de manera ágil (150ms), mientras que el destino entrante
-     * se desvanece con una expansión sutil (0.95f -> 1.0f) en 280ms.
+     * El destino saliente se desvanece de manera ágil (90ms), mientras que el destino entrante
+     * se desvanece con una expansión sutil (0.97f -> 1.0f) en 180ms.
      */
     fun fadeThrough(): ContentTransform {
         val enterTransition: EnterTransition = fadeIn(
-            animationSpec = tween(durationMillis = DurationStandardEnter, easing = EmphasizedDecelerateEasing)
+            animationSpec = tween(durationMillis = 180, easing = EmphasizedDecelerateEasing)
         ) + scaleIn(
-            initialScale = 0.95f,
-            animationSpec = tween(durationMillis = DurationStandardEnter, easing = EmphasizedDecelerateEasing)
+            initialScale = 0.97f,
+            animationSpec = tween(durationMillis = 180, easing = EmphasizedDecelerateEasing)
         )
 
         val exitTransition: ExitTransition = fadeOut(
-            animationSpec = tween(durationMillis = DurationQuickExit, easing = EmphasizedAccelerateEasing)
+            animationSpec = tween(durationMillis = 90, easing = EmphasizedAccelerateEasing)
         )
 
-        return enterTransition togetherWith exitTransition
+        return ContentTransform(
+            targetContentEnter = enterTransition,
+            initialContentExit = exitTransition,
+            sizeTransform = SizeTransform(clip = false)
+        )
     }
 
     /**
@@ -134,60 +143,94 @@ object EcoVerdeMotion {
     }
 
     /**
-     * Transición ultra-fluida optimizada para 120Hz para alternar destinos en la barra inferior (Bottom Navigation).
-     * El destino saliente se retira de inmediato (75ms) y el nuevo entra limpio (140ms).
-     * Elimina el efecto fantasma donde se veían fragmentos de la pantalla anterior superpuestos.
+     * Transición ultra-fluida estilo Fade Through (Mihon / Material Motion) para la barra inferior.
+     * Sin `SizeTransform` ni escalado para evitar relayouts al alternar destinos de pantalla completa.
      */
     fun navDestinationTransform(): ContentTransform {
         val enterTransition: EnterTransition = fadeIn(
-            animationSpec = tween(durationMillis = 140, easing = LinearOutSlowInEasing)
+            animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)
         )
         val exitTransition: ExitTransition = fadeOut(
-            animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)
+            animationSpec = tween(durationMillis = 120, easing = FastOutLinearInEasing)
         )
-        return enterTransition togetherWith exitTransition
+        return ContentTransform(
+            targetContentEnter = enterTransition,
+            initialContentExit = exitTransition,
+            sizeTransform = null
+        )
     }
 
     /**
      * Transición limpia para pestañas internas (Árboles vs Zonas, Clasificación vs Color).
      */
     fun cleanCrossfade(): ContentTransform {
-        return fadeIn(animationSpec = tween(durationMillis = 140, easing = LinearOutSlowInEasing))
-            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)))
+        return ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing)),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 90, easing = FastOutLinearInEasing)),
+            sizeTransform = null
+        )
     }
 
     /**
      * Transición para apertura de diálogos o modales a pantalla completa (Asistente de captura).
      */
     fun modalOpenTransform(): ContentTransform {
-        return (fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)) +
-            scaleIn(initialScale = 0.96f, animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)))
-            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)))
+        return ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 200, easing = EmphasizedDecelerateEasing)) +
+                androidx.compose.animation.slideInVertically(
+                    animationSpec = tween(durationMillis = 200, easing = EmphasizedDecelerateEasing),
+                    initialOffsetY = { (it * 0.06f).toInt() }
+                ),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 110, easing = EmphasizedAccelerateEasing)),
+            sizeTransform = null
+        )
     }
 
     fun modalCloseTransform(): ContentTransform {
-        return fadeIn(animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing))
-            .togetherWith(
-                fadeOut(animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)) +
-                    scaleOut(targetScale = 0.96f, animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing))
-            )
+        return ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 120, easing = EmphasizedAccelerateEasing)) +
+                androidx.compose.animation.slideOutVertically(
+                    animationSpec = tween(durationMillis = 120, easing = EmphasizedAccelerateEasing),
+                    targetOffsetY = { (it * 0.06f).toInt() }
+                ),
+            sizeTransform = null
+        )
     }
 
     /**
-     * Transición para abrir y cerrar vistas de detalle técnico.
+     * Transición Maestro-Detalle estilo Shared Axis X (Mihon Navigator) para abrir y cerrar vistas de detalle técnico.
      */
     fun detailOpenTransform(): ContentTransform {
-        return (fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)) +
-            scaleIn(initialScale = 0.95f, animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)))
-            .togetherWith(fadeOut(animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)))
+        return ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 220, easing = EmphasizedDecelerateEasing)) +
+                slideInHorizontally(
+                    animationSpec = tween(durationMillis = 220, easing = EmphasizedDecelerateEasing),
+                    initialOffsetX = { (it * 0.14f).toInt() }
+                ),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 110, easing = EmphasizedAccelerateEasing)) +
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = 110, easing = EmphasizedAccelerateEasing),
+                    targetOffsetX = { -(it * 0.08f).toInt() }
+                ),
+            sizeTransform = null
+        )
     }
 
     fun detailCloseTransform(): ContentTransform {
-        return fadeIn(animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing))
-            .togetherWith(
-                fadeOut(animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing)) +
-                    scaleOut(targetScale = 0.95f, animationSpec = tween(durationMillis = 75, easing = FastOutLinearInEasing))
-            )
+        return ContentTransform(
+            targetContentEnter = fadeIn(animationSpec = tween(durationMillis = 200, easing = EmphasizedDecelerateEasing)) +
+                slideInHorizontally(
+                    animationSpec = tween(durationMillis = 200, easing = EmphasizedDecelerateEasing),
+                    initialOffsetX = { -(it * 0.10f).toInt() }
+                ),
+            initialContentExit = fadeOut(animationSpec = tween(durationMillis = 120, easing = EmphasizedAccelerateEasing)) +
+                slideOutHorizontally(
+                    animationSpec = tween(durationMillis = 120, easing = EmphasizedAccelerateEasing),
+                    targetOffsetX = { (it * 0.14f).toInt() }
+                ),
+            sizeTransform = null
+        )
     }
 }
 

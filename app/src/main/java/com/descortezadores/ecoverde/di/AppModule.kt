@@ -87,6 +87,7 @@ object AppModule {
             EcoVerdeDatabase::class.java,
             EcoVerdeDatabase.DATABASE_NAME
         )
+            .addMigrations(EcoVerdeDatabase.MIGRATION_1_2)
             .fallbackToDestructiveMigration()
             .build()
     }

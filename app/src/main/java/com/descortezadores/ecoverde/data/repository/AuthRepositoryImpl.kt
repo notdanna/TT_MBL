@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import com.descortezadores.ecoverde.core.common.DeviceIdentifierProvider
 import com.descortezadores.ecoverde.core.common.SystemMessages
+import com.descortezadores.ecoverde.data.local.dao.ForestMonitoringDao
 import com.descortezadores.ecoverde.data.local.session.SessionPreferencesManager
 import com.descortezadores.ecoverde.data.local.session.SessionPreferencesManager.OfflineVerificationResult
 import com.descortezadores.ecoverde.data.remote.api.AuthApiService
@@ -36,7 +37,8 @@ class AuthRepositoryImpl @Inject constructor(
     private val authApiService: AuthApiService,
     private val sessionPreferencesManager: SessionPreferencesManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val forestMonitoringDao: ForestMonitoringDao? = null
 ) : AuthRepository {
 
     // Constructor secundario para pruebas unitarias JVM sin Context de Android
@@ -44,7 +46,7 @@ class AuthRepositoryImpl @Inject constructor(
         authApiService: AuthApiService,
         sessionPreferencesManager: SessionPreferencesManager,
         ioDispatcher: CoroutineDispatcher
-    ) : this(authApiService, sessionPreferencesManager, ioDispatcher, null)
+    ) : this(authApiService, sessionPreferencesManager, ioDispatcher, null, null)
 
     private val gson = Gson()
 
@@ -111,6 +113,10 @@ class AuthRepositoryImpl @Inject constructor(
                         fechaCreacionCuenta = "2026-10-16T19:06:59Z",
                         loginTimestampMillis = System.currentTimeMillis()
                     )
+                    val previousSession = sessionPreferencesManager.getCurrentSession()
+                    if (previousSession != null && previousSession.brigadistaId != preliminarySession.brigadistaId) {
+                        forestMonitoringDao?.clearAllLocalMonitoringData()
+                    }
                     sessionPreferencesManager.saveSession(preliminarySession, rawPasswordToCache = password)
 
                     // 2. Consultar perfil completo en GET /api/v1/auth/perfil (CU-M11)
@@ -324,6 +330,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
         }
         sessionPreferencesManager.clearActiveSession()
+        forestMonitoringDao?.clearAllLocalMonitoringData()
         Result.success(Unit)
     }
 

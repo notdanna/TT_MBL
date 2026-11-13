@@ -17,6 +17,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
@@ -45,6 +48,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +81,7 @@ import com.descortezadores.ecoverde.domain.model.DiagnosticCategory
 import com.descortezadores.ecoverde.domain.model.SampleType
 import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResultTab
 import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResultUiState
+import com.descortezadores.ecoverde.presentation.features.analysis.PREDEFINED_TREE_SPECIES
 import com.descortezadores.ecoverde.presentation.features.analysis.TargetAssociationMode
 import com.descortezadores.ecoverde.presentation.features.analysis.WizardStep
 import com.descortezadores.ecoverde.presentation.theme.EcoVerdeMotion
@@ -439,7 +444,7 @@ private fun ModalidadOptionCard(
  * - Si es corteza: Buscador/selector de árboles existentes en la jornada o botón destacado "+ Dar de alta nuevo árbol".
  * - Si es follaje: Selector o alta rápida de Zona de Follaje.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun Step2VinculacionTerritorial(
     uiState: AnalysisResultUiState,
@@ -560,7 +565,7 @@ private fun Step2VinculacionTerritorial(
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
-                                                text = "${prog.tree.especie} • ${prog.statusBadgeLabel}",
+                                                text = prog.statusBadgeLabel,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -579,7 +584,7 @@ private fun Step2VinculacionTerritorial(
                     }
                 }
             } else {
-                // DAR DE ALTA NUEVO ÁRBOL (RF-19, RN-37, RN-14, RN-38)
+                // DAR DE ALTA NUEVO ÁRBOL (RF-19, RN-37, RN-38)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
@@ -597,6 +602,7 @@ private fun Step2VinculacionTerritorial(
                             fontWeight = FontWeight.Bold,
                             color = GreenPrimary
                         )
+
                         Text(
                             text = "Se registrará automáticamente con las coordenadas GPS actuales del dispositivo.",
                             style = MaterialTheme.typography.bodySmall,
@@ -607,38 +613,37 @@ private fun Step2VinculacionTerritorial(
                             value = uiState.newTreeName,
                             onValueChange = onNewTreeNameChanged,
                             label = { Text("Identificador / Nombre del árbol") },
-                            placeholder = { Text("Ej. Fresno - Calzada de los Poetas") },
+                            placeholder = { Text("Ej. Árbol 01 - Calzada de los Poetas") },
                             shape = MaterialTheme.shapes.medium,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
 
                         Text(
-                            text = "Especie arbórea validada:",
+                            text = "Especie forestal",
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-
-                        val speciesOptions = listOf(
-                            "Fresno (Fraxinus uhdei)",
-                            "Cedro blanco (Cupressus lusitanica)"
-                        )
-
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            speciesOptions.forEachIndexed { index, sp ->
-                                SegmentedButton(
-                                    selected = uiState.newTreeSpecies == sp,
-                                    onClick = { onNewTreeSpeciesChanged(sp) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = speciesOptions.size
-                                    ),
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            PREDEFINED_TREE_SPECIES.forEach { species ->
+                                val selected = uiState.newTreeSpecies == species
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { onNewTreeSpeciesChanged(species) },
                                     label = {
                                         Text(
-                                            text = if (sp.startsWith("Fresno")) "Fresno" else "Cedro blanco",
-                                            style = MaterialTheme.typography.labelSmall
+                                            text = species.substringBefore(" ("),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                         )
-                                    }
+                                    },
+                                    leadingIcon = if (selected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                    } else null
                                 )
                             }
                         }
@@ -840,7 +845,8 @@ private fun Step3CapturaYEncuadre(
                 bitmap = uiState.originalBitmap,
                 canRestore = uiState.uncroppedBitmap != null && uiState.uncroppedBitmap != uiState.originalBitmap,
                 onCropConfirmed = onUpdateCroppedBitmap,
-                onRestoreOriginal = onRestoreOriginalBitmap
+                onRestoreOriginal = onRestoreOriginalBitmap,
+                onRotate90 = onRotateBitmap
             )
         } else {
             // Estado vacío previo a la captura
@@ -996,8 +1002,9 @@ fun ImageCropEditor(
                     .clip(MaterialTheme.shapes.medium)
                     .background(Color.Black)
             ) {
+                val imageBitmap = remember(bitmap) { bitmap.asImageBitmap() }
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
+                    bitmap = imageBitmap,
                     contentDescription = "Muestra para encuadre",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
@@ -1115,42 +1122,62 @@ fun ImageCropEditor(
                 }
             }
 
-            // Opciones de edición: Recorte y Restaurar a original
-            Row(
+            // Opciones de edición: Recortar, Rotar 90° y Restaurar a original
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = {
-                        val bWidth = bitmap.width
-                        val bHeight = bitmap.height
-                        val x = (normLeft * bWidth).toInt().coerceIn(0, bWidth - 1)
-                        val y = (normTop * bHeight).toInt().coerceIn(0, bHeight - 1)
-                        val w = ((normRight - normLeft) * bWidth).toInt().coerceIn(10, bWidth - x)
-                        val h = ((normBottom - normTop) * bHeight).toInt().coerceIn(10, bHeight - y)
-                        if (w > 10 && h > 10) {
-                            val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
-                            onCropConfirmed(cropped)
-                            normLeft = 0.05f
-                            normTop = 0.05f
-                            normRight = 0.95f
-                            normBottom = 0.95f
-                        }
-                    },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Recorte", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    Button(
+                        onClick = {
+                            val bWidth = bitmap.width
+                            val bHeight = bitmap.height
+                            val x = (normLeft * bWidth).toInt().coerceIn(0, bWidth - 1)
+                            val y = (normTop * bHeight).toInt().coerceIn(0, bHeight - 1)
+                            val w = ((normRight - normLeft) * bWidth).toInt().coerceIn(10, bWidth - x)
+                            val h = ((normBottom - normTop) * bHeight).toInt().coerceIn(10, bHeight - y)
+                            if (w > 10 && h > 10) {
+                                val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
+                                onCropConfirmed(cropped)
+                                normLeft = 0.05f
+                                normTop = 0.05f
+                                normRight = 0.95f
+                                normBottom = 0.95f
+                            }
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Recorte", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                    }
+
+                    if (onRotate90 != null) {
+                        OutlinedButton(
+                            onClick = onRotate90,
+                            shape = CircleShape,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Rotar 90°", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = onRestoreOriginal,
-                    enabled = canRestore,
-                    shape = CircleShape,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Restaurar a original", style = MaterialTheme.typography.labelMedium)
+                if (canRestore) {
+                    OutlinedButton(
+                        onClick = onRestoreOriginal,
+                        shape = CircleShape,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Restaurar a original", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }

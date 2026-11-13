@@ -32,7 +32,9 @@ data class SavedDetectionRecord(
     val originalImagePath: String,
     val overlayImagePath: String,
     val syncStatus: SyncStatus,
-    val chromaticResult: ChromaticAnalysisResult?
+    val chromaticResult: ChromaticAnalysisResult?,
+    val isOfflineExecution: Boolean = true,
+    val executionBadgeLabel: String = "LOCAL"
 )
 
 /**
@@ -74,6 +76,11 @@ interface ForestMonitoringRepository {
      * Observa todas las detecciones guardadas localmente en SQLite Room (`RF-17`).
      */
     fun observeAllDetections(): Flow<List<SavedDetectionRecord>>
+
+    /**
+     * Actualiza las observaciones de campo de un análisis ya guardado localmente en Room.
+     */
+    suspend fun updateDetectionObservations(idAnalisis: String, observaciones: String?): Result<Unit>
 
     /**
      * Observa el resumen estadístico de la jornada actual (`00:00` a `23:59`, `RF-12`, `RN-30`, `RN-31`).
@@ -161,4 +168,10 @@ interface ForestMonitoringRepository {
      * zonas de follaje y focos) así como las imágenes locales almacenadas en el dispositivo.
      */
     suspend fun clearAllLocalDatabase(): Result<Unit>
+
+    /**
+     * Resuelve una ruta de evidencia local o URL remota (descargando desde el backend y cacheando
+     * localmente si aún no existe en el dispositivo).
+     */
+    suspend fun resolveEvidenceFile(pathOrUrl: String): java.io.File? = null
 }

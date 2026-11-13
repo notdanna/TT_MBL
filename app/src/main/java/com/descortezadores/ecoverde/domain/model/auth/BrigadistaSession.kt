@@ -32,6 +32,6 @@ data class BrigadistaSession(
  */
 data class PasswordRecoveryTicket(
     val mensaje: String,
-    val codigoRecuperacion: String,
+    val codigoRecuperacion: String? = null,
     val vigenciaHoras: Int
 )

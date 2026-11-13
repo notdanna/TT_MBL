@@ -8,12 +8,17 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
 import android.graphics.RectF
+import android.view.View
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +42,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
@@ -61,6 +67,15 @@ private const val LAYER_USER = "ecoverde-user-layer"
 
 private const val ICON_USER_PERSON = "marker-user-person"
 private const val ICON_TREE_GREEN = "marker-tree-green"
+private const val ICON_TREE_RED = "marker-tree-red"
+private const val ICON_TREE_AMBER = "marker-tree-amber"
+
+private const val UNSELECTED_TREE_ICON_SCALE = 0.72f
+private const val FOCUSED_TREE_ICON_SCALE = 1.32f
+
+private const val SAME_LOCATION_THRESHOLD_DEG = 0.00005 // ~5 metros
+private const val SPREAD_LON_STEP_DEG = 0.00034 // Separación horizontal entre iconos de árbol en el mismo punto
+private const val SPREAD_LAT_STEP_DEG = 0.00030 // Separación vertical si hay más de 5 en el mismo punto
 
 @Volatile
 private var cachedPreparedStyleJson: String? = null
@@ -69,7 +84,7 @@ private var cachedPreparedStyleJson: String? = null
 private var cachedPersonMarkerBitmap: Bitmap? = null
 
 @Volatile
-private var cachedGreenTreeMarkerBitmap: Bitmap? = null
+private var cachedTreeMarkerBitmaps = mutableMapOf<String, Bitmap>()
 
 // Coordenadas fijas para que el mapa siempre inicie en el Bosque de Chapultepec (1a a 4a Secc.)
 private const val CHAPULTEPEC_LAT = 19.4195
@@ -77,20 +92,32 @@ private const val CHAPULTEPEC_LON = -99.1895
 private const val CHAPULTEPEC_ZOOM = 14.0
 
 /**
+ * Pre-calienta en segundo plano el estilo offline y los archivos `cdmx.pmtiles`/`glyphs`
+ * para que la primera apertura de la pestaña de Mapa sea instantánea.
+ */
+suspend fun prewarmOfflineMapStyle(context: Context) {
+    withContext(Dispatchers.IO) {
+        runCatching { prepareOfflineMapStyle(context.applicationContext) }
+    }
+}
+
+/**
  * Vista de mapa vectorial Offline con MapLibre GL consumiendo `asset://style.json` y `cdmx.pmtiles`.
  *
  * Mejoras:
- * - Los árboles normales se renderizan sin etiqueta para evitar sobreposición visual.
- * - Solo el árbol seleccionado/marcado para ir al mapa muestra un icono de árbol verde y su título flotando.
- * - La ubicación del usuario se renderiza con un icono de persona y se oculta cuando se enfoca un árbol.
+ * - Usa `textureMode(true)` para participar de forma fluida en transiciones Compose a 120 Hz.
+ * - Soporta retención en memoria mediante [isVisible] sin destruir ni recargar el mapa al cambiar de tab.
+ * - Calcula GeoJSON y clustering de pines en `Dispatchers.Default` fuera del hilo principal.
  */
 @Composable
 fun OfflineForestMapLibreView(
     currentLat: Double,
     currentLon: Double,
     showUserLocation: Boolean = true,
+    isVisible: Boolean = true,
     focusedTree: TreeRecord? = null,
     targetCoordinates: Pair<Double, Double>? = null,
+    mapCameraNonce: Long = 0L,
     trees: List<TreeRecord>,
     records: List<SavedDetectionRecord>,
     hotspots: List<InfestationFocus>,
@@ -106,7 +133,9 @@ fun OfflineForestMapLibreView(
     }
 
     val mapView = remember(context) {
-        MapView(context).apply {
+        val options = MapLibreMapOptions.createFromAttributes(context)
+            .textureMode(true)
+        MapView(context, options).apply {
             onCreate(null)
         }
     }
@@ -115,13 +144,60 @@ fun OfflineForestMapLibreView(
     var styleReady by remember { mutableStateOf(false) }
     var initialPositionCentered by remember { mutableStateOf(false) }
 
+    // Animación spring 120Hz para destacar el árbol seleccionado mucho más grande que los demás
+    var targetFocusedScale by remember { mutableStateOf(UNSELECTED_TREE_ICON_SCALE) }
+    LaunchedEffect(focusedTree?.idArbol) {
+        if (focusedTree != null) {
+            targetFocusedScale = UNSELECTED_TREE_ICON_SCALE
+            kotlinx.coroutines.yield()
+            targetFocusedScale = FOCUSED_TREE_ICON_SCALE
+        } else {
+            targetFocusedScale = UNSELECTED_TREE_ICON_SCALE
+        }
+    }
+    val animatedFocusedScale by animateFloatAsState(
+        targetValue = targetFocusedScale,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "focusedTreeScale"
+    )
+    LaunchedEffect(animatedFocusedScale, styleReady, isVisible) {
+        if (!styleReady || !isVisible) return@LaunchedEffect
+        mapInstance?.style?.getLayerAs<SymbolLayer>(LAYER_FOCUSED_TREE_ICON)
+            ?.setProperties(PropertyFactory.iconSize(animatedFocusedScale))
+    }
+
     DisposableEffect(lifecycleOwner, mapView) {
+        var isStarted = false
+        var isResumed = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_START -> {
+                    if (!isStarted) {
+                        mapView.onStart()
+                        isStarted = true
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    if (isVisible && !isResumed) {
+                        mapView.onResume()
+                        isResumed = true
+                    }
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    if (isResumed) {
+                        mapView.onPause()
+                        isResumed = false
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    if (isStarted) {
+                        mapView.onStop()
+                        isStarted = false
+                    }
+                }
                 Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> Unit
             }
@@ -129,41 +205,88 @@ fun OfflineForestMapLibreView(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            if (isResumed) mapView.onPause()
+            if (isStarted) mapView.onStop()
             mapView.onDestroy()
         }
     }
 
-    // Actualizar GeoJSON dinámico
-    LaunchedEffect(styleReady, currentLat, currentLon, showUserLocation, focusedTree, trees, records, hotspots) {
+    // Pausar el render loop OpenGL cuando la pestaña Mapa no está visible, manteniendo la instancia viva
+    LaunchedEffect(isVisible, mapView, lifecycleOwner) {
+        mapView.visibility = if (isVisible) View.VISIBLE else View.GONE
+        val currentState = lifecycleOwner.lifecycle.currentState
+        if (isVisible) {
+            if (currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                mapView.onStart()
+            }
+            if (currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                mapView.onResume()
+            }
+        } else {
+            mapView.onPause()
+        }
+    }
+
+    // Actualizar solo el marcador del usuario ante ticks frecuentes del GPS (en Dispatchers.Default)
+    LaunchedEffect(styleReady, currentLat, currentLon, showUserLocation) {
         val map = mapInstance ?: return@LaunchedEffect
         val style = map.style ?: return@LaunchedEffect
         if (!styleReady) return@LaunchedEffect
 
-        updateGeoJsonSources(
-            style = style,
-            currentLat = currentLat,
-            currentLon = currentLon,
-            showUserLocation = showUserLocation,
-            focusedTree = focusedTree,
-            trees = trees,
-            records = records,
-            hotspots = hotspots
-        )
+        val userGeoJson = withContext(Dispatchers.Default) {
+            buildUserLocationGeoJson(currentLat, currentLon, showUserLocation)
+        }
+        style.getSourceAs<GeoJsonSource>(SOURCE_USER)?.setGeoJson(userGeoJson)
+    }
+
+    // Actualizar focos NOM-019 solo cuando cambia la lista de focos
+    LaunchedEffect(styleReady, hotspots) {
+        val map = mapInstance ?: return@LaunchedEffect
+        val style = map.style ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+
+        val hotspotsGeoJson = withContext(Dispatchers.Default) {
+            buildHotspotsGeoJson(hotspots)
+        }
+        style.getSourceAs<GeoJsonSource>(SOURCE_HOTSPOTS)?.setGeoJson(hotspotsGeoJson)
+    }
+
+    // Actualizar árboles y árbol enfocado en hilo de cómputo (Dispatchers.Default)
+    LaunchedEffect(styleReady, focusedTree, trees, records) {
+        val map = mapInstance ?: return@LaunchedEffect
+        val style = map.style ?: return@LaunchedEffect
+        if (!styleReady) return@LaunchedEffect
+
+        val (pointsGeoJson, focusedGeoJson) = withContext(Dispatchers.Default) {
+            val spreadCoords = computeSpreadMapCoordinates(trees, records)
+            val pts = buildTreesAndRecordsGeoJson(trees, records, focusedTree?.idArbol, spreadCoords)
+            val foc = buildFocusedTreeGeoJson(focusedTree, spreadCoords)
+            pts to foc
+        }
+        style.getSourceAs<GeoJsonSource>(SOURCE_POINTS)?.setGeoJson(pointsGeoJson)
+        style.getSourceAs<GeoJsonSource>(SOURCE_FOCUSED_TREE)?.setGeoJson(focusedGeoJson)
 
         if (!initialPositionCentered) {
+            val initTarget = targetCoordinates
             map.cameraPosition = CameraPosition.Builder()
-                .target(LatLng(CHAPULTEPEC_LAT, CHAPULTEPEC_LON))
-                .zoom(CHAPULTEPEC_ZOOM)
+                .target(
+                    LatLng(
+                        initTarget?.first ?: CHAPULTEPEC_LAT,
+                        initTarget?.second ?: CHAPULTEPEC_LON
+                    )
+                )
+                .zoom(if (initTarget != null) 16.0 else CHAPULTEPEC_ZOOM)
                 .build()
             initialPositionCentered = true
         }
     }
 
-    // Animar cámara cuando cambia targetCoordinates (al tocar "Ir al mapa" o "Mi GPS")
-    LaunchedEffect(targetCoordinates) {
+    // Animar cámara cuando cambia targetCoordinates o mapCameraNonce al estar visible el mapa
+    LaunchedEffect(targetCoordinates, mapCameraNonce, styleReady, isVisible) {
         val target = targetCoordinates ?: return@LaunchedEffect
         val map = mapInstance ?: return@LaunchedEffect
-        if (!styleReady) return@LaunchedEffect
+        if (!styleReady || !isVisible) return@LaunchedEffect
+        kotlinx.coroutines.delay(50)
         map.animateCamera(
             CameraUpdateFactory.newLatLngZoom(
                 LatLng(target.first, target.second),
@@ -182,21 +305,29 @@ fun OfflineForestMapLibreView(
             prepareOfflineMapStyle(context)
         }
 
+        val initialData = withContext(Dispatchers.Default) {
+            val spreadCoords = computeSpreadMapCoordinates(trees, records)
+            InitialMapGeoJson(
+                hotspots = buildHotspotsGeoJson(hotspots),
+                points = buildTreesAndRecordsGeoJson(trees, records, focusedTree?.idArbol, spreadCoords),
+                focused = buildFocusedTreeGeoJson(focusedTree, spreadCoords),
+                user = buildUserLocationGeoJson(currentLat, currentLon, showUserLocation)
+            )
+        }
+
         map.setStyle(Style.Builder().fromJson(styleJson)) { loadedStyle ->
             setupMapLayers(
                 context = context,
                 style = loadedStyle,
-                currentLat = currentLat,
-                currentLon = currentLon,
-                showUserLocation = showUserLocation,
-                focusedTree = focusedTree,
-                trees = trees,
-                records = records,
-                hotspots = hotspots
+                initialGeoJson = initialData
             )
             styleReady = true
         }
     }
+
+    val latestTrees by rememberUpdatedState(trees)
+    val latestOnTreeSelected by rememberUpdatedState(onTreeSelected)
+    val latestOnMapCoordinateClicked by rememberUpdatedState(onMapCoordinateClicked)
 
     AndroidView(
         modifier = modifier,
@@ -233,13 +364,14 @@ fun OfflineForestMapLibreView(
                         )
                         val clickedTreeId = features.firstOrNull()?.getStringProperty("id")
                         val clickedTreeTitle = features.firstOrNull()?.getStringProperty("title")
-                        val clickedTree = trees.firstOrNull { it.idArbol == clickedTreeId }
-                            ?: trees.firstOrNull { it.nombreEspecifico == clickedTreeTitle }
+                        val currentTrees = latestTrees
+                        val clickedTree = currentTrees.firstOrNull { it.idArbol == clickedTreeId }
+                            ?: currentTrees.firstOrNull { it.nombreEspecifico == clickedTreeTitle }
 
                         if (clickedTree != null) {
-                            onTreeSelected(clickedTree)
+                            latestOnTreeSelected(clickedTree)
                         } else {
-                            onMapCoordinateClicked(latLng.latitude, latLng.longitude)
+                            latestOnMapCoordinateClicked(latLng.latitude, latLng.longitude)
                         }
                         true
                     }
@@ -249,28 +381,35 @@ fun OfflineForestMapLibreView(
     )
 }
 
+private data class InitialMapGeoJson(
+    val hotspots: String,
+    val points: String,
+    val focused: String,
+    val user: String
+)
+
 private fun setupMapLayers(
     context: Context,
     style: Style,
-    currentLat: Double,
-    currentLon: Double,
-    showUserLocation: Boolean,
-    focusedTree: TreeRecord?,
-    trees: List<TreeRecord>,
-    records: List<SavedDetectionRecord>,
-    hotspots: List<InfestationFocus>
+    initialGeoJson: InitialMapGeoJson
 ) {
     // 1. Registrar iconos en el estilo de MapLibre
     if (style.getImage(ICON_USER_PERSON) == null) {
         style.addImage(ICON_USER_PERSON, createPersonMarkerBitmap(context))
     }
     if (style.getImage(ICON_TREE_GREEN) == null) {
-        style.addImage(ICON_TREE_GREEN, createGreenTreeMarkerBitmap(context))
+        style.addImage(ICON_TREE_GREEN, createTreeMarkerBitmap(context, "#2E7D32"))
+    }
+    if (style.getImage(ICON_TREE_RED) == null) {
+        style.addImage(ICON_TREE_RED, createTreeMarkerBitmap(context, "#C62828"))
+    }
+    if (style.getImage(ICON_TREE_AMBER) == null) {
+        style.addImage(ICON_TREE_AMBER, createTreeMarkerBitmap(context, "#EF6C00"))
     }
 
     // 2. Focos de Infestación Activos NOM-019 (círculos de afectación roja)
     if (style.getSource(SOURCE_HOTSPOTS) == null) {
-        style.addSource(GeoJsonSource(SOURCE_HOTSPOTS, buildHotspotsGeoJson(hotspots)))
+        style.addSource(GeoJsonSource(SOURCE_HOTSPOTS, initialGeoJson.hotspots))
         style.addLayer(
             CircleLayer(LAYER_HOTSPOTS, SOURCE_HOTSPOTS).withProperties(
                 PropertyFactory.circleRadius(26f),
@@ -282,26 +421,27 @@ private fun setupMapLayers(
         )
     }
 
-    // 3. Puntos de árboles y capturas estándar (Círculos sin etiquetas para evitar sobreposiciones)
+    // 3. Árboles y capturas estándar: todos usan el icono con forma de árbol (tamaño compacto)
     if (style.getSource(SOURCE_POINTS) == null) {
-        style.addSource(GeoJsonSource(SOURCE_POINTS, buildTreesAndRecordsGeoJson(trees, records, focusedTree?.idArbol)))
+        style.addSource(GeoJsonSource(SOURCE_POINTS, initialGeoJson.points))
         style.addLayer(
-            CircleLayer(LAYER_POINTS, SOURCE_POINTS).withProperties(
-                PropertyFactory.circleRadius(8.5f),
-                PropertyFactory.circleColor(Expression.get("color")),
-                PropertyFactory.circleStrokeWidth(2f),
-                PropertyFactory.circleStrokeColor("#FFFFFF")
+            SymbolLayer(LAYER_POINTS, SOURCE_POINTS).withProperties(
+                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconSize(UNSELECTED_TREE_ICON_SCALE),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
             )
         )
     }
 
-    // 4. Árbol seleccionado/enfocado: Icono de Árbol Verde + Título destacado flotando encima
+    // 4. Árbol seleccionado/enfocado: Icono de Árbol animado más grande + Título destacado flotando encima
     if (style.getSource(SOURCE_FOCUSED_TREE) == null) {
-        style.addSource(GeoJsonSource(SOURCE_FOCUSED_TREE, buildFocusedTreeGeoJson(focusedTree)))
+        style.addSource(GeoJsonSource(SOURCE_FOCUSED_TREE, initialGeoJson.focused))
         style.addLayer(
             SymbolLayer(LAYER_FOCUSED_TREE_ICON, SOURCE_FOCUSED_TREE).withProperties(
-                PropertyFactory.iconImage(ICON_TREE_GREEN),
-                PropertyFactory.iconSize(1.0f),
+                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconSize(FOCUSED_TREE_ICON_SCALE),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
@@ -312,11 +452,11 @@ private fun setupMapLayers(
                 PropertyFactory.textField(Expression.get("title")),
                 PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
                 PropertyFactory.textSize(12.5f),
-                PropertyFactory.textColor("#0B2613"),
+                PropertyFactory.textColor(Expression.get("color")),
                 PropertyFactory.textHaloColor("#FFFFFF"),
                 PropertyFactory.textHaloWidth(2.5f),
                 PropertyFactory.textAnchor(Property.TEXT_ANCHOR_BOTTOM),
-                PropertyFactory.textOffset(arrayOf(0f, -1.8f)),
+                PropertyFactory.textOffset(arrayOf(0f, -2.35f)),
                 PropertyFactory.textAllowOverlap(true),
                 PropertyFactory.textIgnorePlacement(true)
             )
@@ -325,7 +465,7 @@ private fun setupMapLayers(
 
     // 5. Ubicación actual del usuario: Icono de Persona (se oculta cuando showUserLocation = false)
     if (style.getSource(SOURCE_USER) == null) {
-        style.addSource(GeoJsonSource(SOURCE_USER, buildUserLocationGeoJson(currentLat, currentLon, showUserLocation)))
+        style.addSource(GeoJsonSource(SOURCE_USER, initialGeoJson.user))
         style.addLayer(
             SymbolLayer(LAYER_USER, SOURCE_USER).withProperties(
                 PropertyFactory.iconImage(ICON_USER_PERSON),
@@ -336,22 +476,6 @@ private fun setupMapLayers(
             )
         )
     }
-}
-
-private fun updateGeoJsonSources(
-    style: Style,
-    currentLat: Double,
-    currentLon: Double,
-    showUserLocation: Boolean,
-    focusedTree: TreeRecord?,
-    trees: List<TreeRecord>,
-    records: List<SavedDetectionRecord>,
-    hotspots: List<InfestationFocus>
-) {
-    (style.getSourceAs<GeoJsonSource>(SOURCE_HOTSPOTS))?.setGeoJson(buildHotspotsGeoJson(hotspots))
-    (style.getSourceAs<GeoJsonSource>(SOURCE_POINTS))?.setGeoJson(buildTreesAndRecordsGeoJson(trees, records, focusedTree?.idArbol))
-    (style.getSourceAs<GeoJsonSource>(SOURCE_FOCUSED_TREE))?.setGeoJson(buildFocusedTreeGeoJson(focusedTree))
-    (style.getSourceAs<GeoJsonSource>(SOURCE_USER))?.setGeoJson(buildUserLocationGeoJson(currentLat, currentLon, showUserLocation))
 }
 
 private fun buildUserLocationGeoJson(lat: Double, lon: Double, showUser: Boolean): String {
@@ -384,16 +508,23 @@ private fun buildHotspotsGeoJson(hotspots: List<InfestationFocus>): String {
         .toString()
 }
 
-private fun buildFocusedTreeGeoJson(focusedTree: TreeRecord?): String {
+private fun buildFocusedTreeGeoJson(
+    focusedTree: TreeRecord?,
+    spreadCoords: Map<String, Pair<Double, Double>> = emptyMap()
+): String {
     val features = JSONArray()
     if (focusedTree != null && focusedTree.latitud != null && focusedTree.longitud != null) {
+        val (displayLat, displayLon) = spreadCoords["tree:${focusedTree.idArbol}"]
+            ?: (focusedTree.latitud to focusedTree.longitud)
+        val isInfested = focusedTree.ultimoEstadoSanitario == ClassificationOutcome.INFESTADO
         features.put(
             createPointFeature(
-                lat = focusedTree.latitud,
-                lon = focusedTree.longitud,
-                colorHex = "#2E7D32",
+                lat = displayLat,
+                lon = displayLon,
+                colorHex = if (isInfested) "#C62828" else "#0B2613",
                 title = focusedTree.nombreEspecifico,
-                id = focusedTree.idArbol
+                id = focusedTree.idArbol,
+                icon = if (isInfested) ICON_TREE_RED else ICON_TREE_GREEN
             )
         )
     }
@@ -406,53 +537,32 @@ private fun buildFocusedTreeGeoJson(focusedTree: TreeRecord?): String {
 private fun buildTreesAndRecordsGeoJson(
     trees: List<TreeRecord>,
     records: List<SavedDetectionRecord>,
-    focusedTreeId: String? = null
+    focusedTreeId: String? = null,
+    spreadCoords: Map<String, Pair<Double, Double>> = emptyMap()
 ): String {
     val features = JSONArray()
 
     trees.forEach { tree ->
-        // Si es el árbol enfocado, no se incluye aquí para evitar duplicación con el icono de árbol verde
+        // Si es el árbol enfocado, no se incluye aquí para evitar duplicación con la capa animada
         if (tree.idArbol == focusedTreeId) return@forEach
         val lat = tree.latitud ?: return@forEach
         val lon = tree.longitud ?: return@forEach
-        val color = when (tree.ultimoEstadoSanitario) {
-            ClassificationOutcome.INFESTADO -> "#C62828"
-            ClassificationOutcome.SANO -> "#2E7D32"
-            else -> "#EF6C00"
+        val (displayLat, displayLon) = spreadCoords["tree:${tree.idArbol}"] ?: (lat to lon)
+        val (color, icon) = when (tree.ultimoEstadoSanitario) {
+            ClassificationOutcome.INFESTADO -> "#C62828" to ICON_TREE_RED
+            ClassificationOutcome.SANO -> "#2E7D32" to ICON_TREE_GREEN
+            else -> "#EF6C00" to ICON_TREE_AMBER
         }
         features.put(
             createPointFeature(
-                lat = lat,
-                lon = lon,
+                lat = displayLat,
+                lon = displayLon,
                 colorHex = color,
                 title = tree.nombreEspecifico,
-                id = tree.idArbol
+                id = tree.idArbol,
+                icon = icon
             )
         )
-    }
-
-    val existingTreeIds = trees.map { it.idArbol }.toSet()
-    records.forEach { rec ->
-        val treeId = when (val target = rec.targetAssociation) {
-            is TargetAssociation.CortezaTarget.ExistingTree -> target.idArbol
-            else -> null
-        }
-        if (treeId == null || !existingTreeIds.contains(treeId)) {
-            val color = when (rec.classificationOutcome) {
-                ClassificationOutcome.INFESTADO -> "#C62828"
-                ClassificationOutcome.SANO -> "#2E7D32"
-                ClassificationOutcome.NO_DETERMINADO -> "#FFA000"
-            }
-            features.put(
-                createPointFeature(
-                    lat = rec.latitud,
-                    lon = rec.longitud,
-                    colorHex = color,
-                    title = "",
-                    id = rec.idAnalisis
-                )
-            )
-        }
     }
 
     return JSONObject()
@@ -461,12 +571,68 @@ private fun buildTreesAndRecordsGeoJson(
         .toString()
 }
 
+/**
+ * Agrupa pines que comparten la misma ubicación (~5 m) y los distribuye uno al lado del otro
+ * para evitar que queden encimados en el mapa.
+ */
+private fun computeSpreadMapCoordinates(
+    trees: List<TreeRecord>,
+    records: List<SavedDetectionRecord>
+): Map<String, Pair<Double, Double>> {
+    data class RawPin(val key: String, val lat: Double, val lon: Double)
+
+    val rawPins = mutableListOf<RawPin>()
+    trees.forEach { tree ->
+        val lat = tree.latitud ?: return@forEach
+        val lon = tree.longitud ?: return@forEach
+        rawPins.add(RawPin(key = "tree:${tree.idArbol}", lat = lat, lon = lon))
+    }
+
+    val clusters = mutableListOf<MutableList<RawPin>>()
+    rawPins.forEach { pin ->
+        val matchingCluster = clusters.firstOrNull { cluster ->
+            val anchor = cluster.first()
+            kotlin.math.abs(pin.lat - anchor.lat) <= SAME_LOCATION_THRESHOLD_DEG &&
+                kotlin.math.abs(pin.lon - anchor.lon) <= SAME_LOCATION_THRESHOLD_DEG
+        }
+        if (matchingCluster != null) {
+            matchingCluster.add(pin)
+        } else {
+            clusters.add(mutableListOf(pin))
+        }
+    }
+
+    val result = HashMap<String, Pair<Double, Double>>(rawPins.size)
+    val maxPerRow = 5
+    clusters.forEach { cluster ->
+        if (cluster.size == 1) {
+            val single = cluster.first()
+            result[single.key] = single.lat to single.lon
+        } else {
+            val sorted = cluster.sortedBy { it.key }
+            val baseLat = sorted.map { it.lat }.average()
+            val baseLon = sorted.map { it.lon }.average()
+            val totalRows = (sorted.size + maxPerRow - 1) / maxPerRow
+            sorted.forEachIndexed { index, pin ->
+                val row = index / maxPerRow
+                val col = index % maxPerRow
+                val itemsInRow = if (row < totalRows - 1) maxPerRow else sorted.size - row * maxPerRow
+                val displayLon = baseLon + (col - (itemsInRow - 1) / 2.0) * SPREAD_LON_STEP_DEG
+                val displayLat = baseLat - (row - (totalRows - 1) / 2.0) * SPREAD_LAT_STEP_DEG
+                result[pin.key] = displayLat to displayLon
+            }
+        }
+    }
+    return result
+}
+
 private fun createPointFeature(
     lat: Double,
     lon: Double,
     colorHex: String,
     title: String,
-    id: String = ""
+    id: String = "",
+    icon: String = ""
 ): JSONObject {
     val coords = JSONArray().put(lon).put(lat)
     val geometry = JSONObject()
@@ -477,6 +643,9 @@ private fun createPointFeature(
         .put("title", title)
     if (id.isNotBlank()) {
         properties.put("id", id)
+    }
+    if (icon.isNotBlank()) {
+        properties.put("icon", icon)
     }
     return JSONObject()
         .put("type", "Feature")
@@ -543,10 +712,12 @@ private fun createPersonMarkerBitmap(context: Context): Bitmap {
 }
 
 /**
- * Genera un Bitmap con icono de árbol verde estilizado (silueta de pino sobre fondo circular blanco con anillo verde).
+ * Genera un Bitmap con icono de árbol estilizado (silueta de pino sobre fondo circular blanco con anillo de estado).
  */
-private fun createGreenTreeMarkerBitmap(context: Context): Bitmap {
-    cachedGreenTreeMarkerBitmap?.let { return it }
+private fun createTreeMarkerBitmap(context: Context, hexColor: String): Bitmap {
+    cachedTreeMarkerBitmaps[hexColor]?.let { return it }
+
+    val mainColor = Color.parseColor(hexColor)
     val density = context.resources.displayMetrics.density
     val size = (44 * density).toInt().coerceAtLeast(36)
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -568,18 +739,18 @@ private fun createGreenTreeMarkerBitmap(context: Context): Bitmap {
     }
     canvas.drawCircle(cx, cy, 18f * density, bgPaint)
 
-    // 3. Anillo verde bosque exterior
+    // 3. Anillo exterior (verde o rojo según estado sanitario)
     val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 2.5f * density
-        color = Color.parseColor("#2E7D32")
+        color = mainColor
     }
     canvas.drawCircle(cx, cy, 17f * density, strokePaint)
 
-    // 4. Silueta de Árbol / Pino en verde vivo
+    // 4. Silueta de Árbol / Pino
     val treePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = Color.parseColor("#2E7D32")
+        color = mainColor
     }
 
     // Copa superior
@@ -613,7 +784,7 @@ private fun createGreenTreeMarkerBitmap(context: Context): Bitmap {
         trunkPaint
     )
 
-    cachedGreenTreeMarkerBitmap = bitmap
+    cachedTreeMarkerBitmaps[hexColor] = bitmap
     return bitmap
 }
 

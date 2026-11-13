@@ -170,8 +170,9 @@ fun ClassificationTabContent(
                     contentAlignment = Alignment.Center
                 ) {
                     if (originalBitmap != null) {
+                        val origImageBitmap = remember(originalBitmap) { originalBitmap.asImageBitmap() }
                         Image(
-                            bitmap = originalBitmap.asImageBitmap(),
+                            bitmap = origImageBitmap,
                             contentDescription = "Fotografía original capturada",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
@@ -509,7 +510,7 @@ fun ClassificationTabContent(
                                                 val historySubtitle = if (prog.totalCaptures > 0) {
                                                     "${prog.totalCaptures} análisis • ${prog.healthyHistoryPercentage}% Sano / ${prog.infestedHistoryPercentage}% Infestado"
                                                 } else {
-                                                    "0 análisis • ${prog.tree.especie}"
+                                                    "0 análisis"
                                                 }
                                                 Text(
                                                     text = historySubtitle,
@@ -612,46 +613,11 @@ fun ClassificationTabContent(
                                     OutlinedTextField(
                                         value = newTreeName,
                                         onValueChange = onNewTreeNameChanged,
-                                        label = { Text("Nombre/Identificador del árbol (ej. Fresno95)") },
+                                        label = { Text("Nombre/Identificador del árbol") },
                                         singleLine = true,
                                         shape = MaterialTheme.shapes.medium,
                                         modifier = Modifier.fillMaxWidth()
                                     )
-                                    Text(
-                                        text = "Especie hospedera en Bosque de Chapultepec:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    val speciesOptions = listOf(
-                                        "Fresno (Fraxinus uhdei)",
-                                        "Cedro blanco (Cupressus lusitanica)"
-                                    )
-                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                        speciesOptions.forEachIndexed { index, sp ->
-                                            val isSelectedSp = newTreeSpecies == sp
-                                            SegmentedButton(
-                                                selected = isSelectedSp,
-                                                onClick = {
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    onNewTreeSpeciesChanged(sp)
-                                                },
-                                                shape = SegmentedButtonDefaults.itemShape(
-                                                    index = index,
-                                                    count = speciesOptions.size
-                                                ),
-                                                label = {
-                                                    Text(
-                                                        text = if (sp.startsWith("Fresno")) {
-                                                            "Fresno (F. uhdei)"
-                                                        } else {
-                                                            "Cedro blanco"
-                                                        },
-                                                        style = MaterialTheme.typography.labelSmall
-                                                    )
-                                                }
-                                            )
-                                        }
-                                    }
                                     OutlinedButton(
                                         onClick = {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)

@@ -58,17 +58,16 @@ class AuthViewModel @Inject constructor(
     init {
         observeActiveSession()
         observeOpenCvStatus()
-        observeRoomDatabaseStreams()
-        verifyInfrastructure()
     }
 
     private fun observeActiveSession() {
         viewModelScope.launch {
             authRepository.activeSessionFlow.collectLatest { session ->
-                _uiState.update { it.copy(activeSession = session) }
-                if (session != null && _uiState.value.visionPreview.sourceBitmap == null) {
-                    runPhase3SyntheticSampleAnalysis(SampleType.CORTEZA)
-                    refreshCatalogsFromBackend()
+                _uiState.update {
+                    it.copy(
+                        activeSession = session,
+                        isCheckingSession = false
+                    )
                 }
             }
         }
@@ -228,13 +227,18 @@ class AuthViewModel @Inject constructor(
             val result = authRepository.requestPasswordRecovery(correo)
             result.fold(
                 onSuccess = { ticket ->
+                    val code = ticket.codigoRecuperacion?.takeIf { it.isNotBlank() }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             lastRecoveryTicket = ticket,
-                            recoveryToken = ticket.codigoRecuperacion,
+                            recoveryToken = code.orEmpty(),
                             authMode = AuthMode.RESET_PASSWORD,
-                            infoMessage = "${ticket.mensaje} Código: ${ticket.codigoRecuperacion}"
+                            infoMessage = if (code != null) {
+                                "${ticket.mensaje} Código: $code"
+                            } else {
+                                ticket.mensaje
+                            }
                         )
                     }
                 },

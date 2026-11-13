@@ -12,14 +12,23 @@ import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
+import android.os.Looper
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -76,6 +85,117 @@ object ImageMetadataAndLocationHelper {
     private const val DEFAULT_CHAPULTEPEC_LAT = 19.42182
     private const val DEFAULT_CHAPULTEPEC_LON = -99.18203
 
+    const val MIN_IMAGE_DIMENSION_PX = 300
+    const val MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L
+
+    private val ALLOWED_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bmp", "heic")
+    private val ALLOWED_IMAGE_MIME_TYPES = setOf(
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/bmp",
+        "image/x-ms-bmp",
+        "image/heic",
+        "image/heif"
+    )
+
+    /**
+     * Valida las reglas RN-07, RN-08 y RN-09 para un URI seleccionado de galería:
+     * - Formato permitido (`jpg, jpeg, png, webp, bmp, heic`)
+     * - Tamaño máximo de 10 MB
+     * - Resolución mínima de 300×300 px
+     * @return `null` si es válida, o mensaje descriptivo con prefijo [SystemMessages.MSG19].
+     */
+    suspend fun validateGalleryUriPreconditions(
+        context: Context,
+        uri: Uri
+    ): String? = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val mimeType = resolver.getType(uri)?.lowercase(Locale.ROOT)
+        var displayName: String? = null
+        var sizeBytes: Long? = null
+
+        runCatching {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        if (nameIdx >= 0) displayName = cursor.getString(nameIdx)
+                        if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) sizeBytes = cursor.getLong(sizeIdx)
+                    }
+                }
+        }
+
+        if (sizeBytes == null) {
+            sizeBytes = runCatching {
+                resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+            }.getOrNull()?.takeIf { it > 0L }
+        }
+
+        val extFromName = displayName?.substringAfterLast('.', "")?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() && displayName?.contains('.') == true }
+        val extFromMime = mimeType?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+            ?.lowercase(Locale.ROOT)
+
+        val formatValid = (mimeType != null && mimeType in ALLOWED_IMAGE_MIME_TYPES) ||
+            (extFromName != null && extFromName in ALLOWED_IMAGE_EXTENSIONS) ||
+            (extFromMime != null && extFromMime in ALLOWED_IMAGE_EXTENSIONS)
+
+        if (!formatValid && (mimeType != null || extFromName != null)) {
+            return@withContext "${SystemMessages.MSG19} Formato no soportado (usa JPG, JPEG, PNG, WebP, BMP o HEIC)."
+        }
+
+        val resolvedSize = sizeBytes
+        if (resolvedSize != null && resolvedSize > MAX_IMAGE_SIZE_BYTES) {
+            val sizeMb = String.format(Locale.US, "%.1f", resolvedSize / (1024.0 * 1024.0))
+            return@withContext "${SystemMessages.MSG19} La imagen supera el límite de 10 MB ($sizeMb MB)."
+        }
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val decodedBounds = runCatching {
+            resolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, bounds)
+                bounds.outWidth > 0 && bounds.outHeight > 0
+            } ?: false
+        }.getOrDefault(false)
+
+        if (!decodedBounds) {
+            return@withContext "${SystemMessages.MSG19} No se pudieron leer las dimensiones de la imagen."
+        }
+        if (bounds.outWidth < MIN_IMAGE_DIMENSION_PX || bounds.outHeight < MIN_IMAGE_DIMENSION_PX) {
+            return@withContext "${SystemMessages.MSG19} Resolución insuficiente (${bounds.outWidth}×${bounds.outHeight} px; mínimo ${MIN_IMAGE_DIMENSION_PX}×${MIN_IMAGE_DIMENSION_PX} px)."
+        }
+        null
+    }
+
+    /**
+     * Valida RN-07, RN-08 y RN-09 para un archivo capturado en disco.
+     */
+    suspend fun validateImageFilePreconditions(file: File): String? = withContext(Dispatchers.IO) {
+        if (!file.exists() || file.length() <= 0L) {
+            return@withContext "${SystemMessages.MSG18} El archivo de captura está vacío o no existe."
+        }
+        val ext = file.extension.lowercase(Locale.ROOT)
+        if (ext.isNotBlank() && ext !in ALLOWED_IMAGE_EXTENSIONS) {
+            return@withContext "${SystemMessages.MSG19} Formato .$ext no compatible."
+        }
+        if (file.length() > MAX_IMAGE_SIZE_BYTES) {
+            val sizeMb = String.format(Locale.US, "%.1f", file.length() / (1024.0 * 1024.0))
+            return@withContext "${SystemMessages.MSG19} La imagen supera el límite de 10 MB ($sizeMb MB)."
+        }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return@withContext "${SystemMessages.MSG19} Archivo de imagen inválido o dañado."
+        }
+        if (bounds.outWidth < MIN_IMAGE_DIMENSION_PX || bounds.outHeight < MIN_IMAGE_DIMENSION_PX) {
+            return@withContext "${SystemMessages.MSG19} Resolución insuficiente (${bounds.outWidth}×${bounds.outHeight} px; mínimo ${MIN_IMAGE_DIMENSION_PX}×${MIN_IMAGE_DIMENSION_PX} px)."
+        }
+        null
+    }
+
     /**
      * Crea un archivo temporal JPEG en `cacheDir/camera_captures/` y devuelve su par `(File, Uri)`
      * listo para usarse con `ActivityResultContracts.TakePicture()`.
@@ -109,6 +229,33 @@ object ImageMetadataAndLocationHelper {
     }
 
     /**
+     * Verifica si los permisos de lectura de imágenes y metadatos EXIF (`READ_MEDIA_IMAGES` /
+     * `READ_EXTERNAL_STORAGE` y `ACCESS_MEDIA_LOCATION`) están concedidos.
+     */
+    fun hasMediaLocationPermission(context: Context): Boolean {
+        val readImagesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_MEDIA_IMAGES
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+        val mediaLocationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_MEDIA_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        return readImagesGranted && mediaLocationGranted
+    }
+
+    /**
      * Verifica si la aplicación cuenta con permiso de cámara concedido.
      */
     fun hasCameraPermission(context: Context): Boolean {
@@ -116,6 +263,62 @@ object ImageMetadataAndLocationHelper {
             context,
             Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Observa actualizaciones continuas de ubicación GPS en tiempo real mediante
+     * [FusedLocationProviderClient] para reflejar movimiento en el mapa y alertas de proximidad.
+     */
+    @SuppressLint("MissingPermission")
+    fun observeLocationUpdates(
+        context: Context,
+        intervalMs: Long = 3000L,
+        minDistanceMeters: Float = 2f
+    ): Flow<DeviceGpsFix> = callbackFlow {
+        if (!hasLocationPermission(context)) {
+            close()
+            return@callbackFlow
+        }
+
+        val fusedClient = runCatching {
+            LocationServices.getFusedLocationProviderClient(context)
+        }.getOrNull()
+
+        if (fusedClient == null) {
+            close()
+            return@callbackFlow
+        }
+
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+            .setMinUpdateIntervalMillis(1500L)
+            .setMinUpdateDistanceMeters(minDistanceMeters)
+            .build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val loc = result.lastLocation ?: return
+                if (isValidCoordinate(loc.latitude, loc.longitude)) {
+                    trySend(
+                        DeviceGpsFix(
+                            latitude = loc.latitude,
+                            longitude = loc.longitude,
+                            accuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null,
+                            isLiveGps = true
+                        )
+                    )
+                }
+            }
+        }
+
+        runCatching {
+            fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        }.onFailure {
+            close(it)
+        }
+
+        awaitClose {
+            runCatching { fusedClient.removeLocationUpdates(callback) }
+        }
     }
 
     /**
@@ -242,13 +445,12 @@ object ImageMetadataAndLocationHelper {
         val decodedBitmap = decodeBitmapFromUri(context, uri, rawExif?.orientation ?: ExifInterface.ORIENTATION_NORMAL)
             ?: return@withContext null
 
-        val exifLatLon = rawExif?.latLong
-        val hasValidExifGps = exifLatLon != null && isValidCoordinate(exifLatLon[0], exifLatLon[1])
+        val validExifGps = rawExif?.latLong?.takeIf { isValidCoordinate(it[0], it[1]) }
 
-        val (finalLat, finalLon, accuracy, sourceLabel) = if (hasValidExifGps && exifLatLon != null) {
+        val (finalLat, finalLon, accuracy, sourceLabel) = if (validExifGps != null) {
             Quadruple(
-                exifLatLon[0],
-                exifLatLon[1],
+                validExifGps[0],
+                validExifGps[1],
                 null,
                 "Metadatos EXIF de la imagen (Galería)"
             )
@@ -271,7 +473,7 @@ object ImageMetadataAndLocationHelper {
             latitude = finalLat,
             longitude = finalLon,
             gpsAccuracyMeters = accuracy,
-            hasExifGps = hasValidExifGps,
+            hasExifGps = validExifGps != null,
             hasExifMetadata = rawExif?.hasAnyExifTag == true,
             locationSourceLabel = sourceLabel,
             exifDateTimeIso = rawExif?.dateTimeIso,
@@ -298,10 +500,10 @@ object ImageMetadataAndLocationHelper {
         if (!captureFile.exists() || captureFile.length() == 0L) return@withContext null
 
         val initialExif = runCatching { ExifInterface(captureFile) }.getOrNull()
-        val initialLatLon = initialExif?.latLong
-        val hasCameraExifGps = initialLatLon != null && isValidCoordinate(initialLatLon[0], initialLatLon[1])
+        val validCameraExifGps = initialExif?.latLong?.takeIf { isValidCoordinate(it[0], it[1]) }
+        val hasCameraExifGps = validCameraExifGps != null
 
-        val gpsFix = if (!hasCameraExifGps) {
+        val gpsFix = if (validCameraExifGps == null) {
             getCurrentDeviceLocation(
                 context = context,
                 fallbackLat = fallbackLat,
@@ -311,16 +513,8 @@ object ImageMetadataAndLocationHelper {
             null
         }
 
-        val finalLat = if (hasCameraExifGps && initialLatLon != null) {
-            initialLatLon[0]
-        } else {
-            gpsFix?.latitude ?: fallbackLat
-        }
-        val finalLon = if (hasCameraExifGps && initialLatLon != null) {
-            initialLatLon[1]
-        } else {
-            gpsFix?.longitude ?: fallbackLon
-        }
+        val finalLat = validCameraExifGps?.get(0) ?: gpsFix?.latitude ?: fallbackLat
+        val finalLon = validCameraExifGps?.get(1) ?: gpsFix?.longitude ?: fallbackLon
 
         // Asegurar que el archivo JPEG de cámara tenga todos sus metadatos EXIF grabados
         runCatching {
@@ -423,13 +617,26 @@ object ImageMetadataAndLocationHelper {
             uri
         }
 
-        val exif = openExifInputStream(context, effectiveUri)?.use { stream ->
+        val exif = runCatching {
+            context.contentResolver.openFileDescriptor(effectiveUri, "r")?.use { pfd ->
+                ExifInterface(pfd.fileDescriptor)
+            }
+        }.getOrNull() ?: openExifInputStream(context, effectiveUri)?.use { stream ->
             runCatching { ExifInterface(stream) }.getOrNull()
-        } ?: openExifInputStream(context, uri)?.use { stream ->
+        } ?: runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                ExifInterface(pfd.fileDescriptor)
+            }
+        }.getOrNull() ?: openExifInputStream(context, uri)?.use { stream ->
             runCatching { ExifInterface(stream) }.getOrNull()
         } ?: return null
 
-        return extractRawExifData(exif)
+        val extracted = extractRawExifData(exif)
+        android.util.Log.i(
+            "ImageMetadataHelper",
+            "readExifFromUri uri=$uri latLong=${extracted.latLong?.joinToString(",")} date=${extracted.dateTimeIso}"
+        )
+        return extracted
     }
 
     private fun openExifInputStream(context: Context, uri: Uri): InputStream? {

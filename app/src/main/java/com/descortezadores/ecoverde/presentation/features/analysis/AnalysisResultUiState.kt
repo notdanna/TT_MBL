@@ -1,6 +1,7 @@
 package com.descortezadores.ecoverde.presentation.features.analysis
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.Immutable
 import com.descortezadores.ecoverde.domain.model.ChromaticAnalysisResult
 import com.descortezadores.ecoverde.domain.model.ClassificationOutcome
 import com.descortezadores.ecoverde.domain.model.ClassificationResult
@@ -80,6 +81,7 @@ enum class TreeHealthFilter(val label: String) {
  * Resumen de progreso e historial fitosanitario de un árbol individual (Figuras 41, 42 y 46).
  * Agrupa todas las capturas tomadas a lo largo del tiempo dentro de la sección independiente del árbol.
  */
+@Immutable
 data class TreeProgressionSummary(
     val tree: TreeRecord,
     val captures: List<SavedDetectionRecord>,
@@ -134,6 +136,7 @@ enum class HomeWorkTab(val label: String) {
 /**
  * Resumen de progreso e historial fitosanitario de una Zona de Follaje (macro área / tomas aéreas).
  */
+@Immutable
 data class FoliageZoneProgressionSummary(
     val zone: FoliageZoneRecord,
     val captures: List<SavedDetectionRecord>,
@@ -175,16 +178,39 @@ data class FoliageZoneProgressionSummary(
 /**
  * Alerta de proximidad GPS a un Foco de Infestación Activo NOM-019 (`RN-27`, `RN-34`, `CU-M10`).
  */
+@Immutable
 data class ProximityAlertUi(
     val idFoco: String,
     val distanciaMetros: Double,
     val cantidadArbolesInfectados: Int,
-    val mensajeAlerta: String
+    val mensajeAlerta: String,
+    val latitud: Double? = null,
+    val longitud: Double? = null
+)
+
+/**
+ * Árbol con infestación activa detectado dentro del radio circular de 100 metros de la ubicación actual.
+ */
+@Immutable
+data class NearbyInfestedTreeAlert(
+    val idArbol: String,
+    val nombreArbol: String,
+    val latitud: Double,
+    val longitud: Double,
+    val distanciaMetros: Double
+)
+
+val PREDEFINED_TREE_SPECIES = listOf(
+    "Fresno (Fraxinus uhdei)",
+    "Cedro blanco (Cupressus lusitanica)",
+    "Pino (Pinus spp.)",
+    "Oyamel (Abies religiosa)"
 )
 
 /**
  * Estado inmutable de UI para la pantalla de Análisis Fitosanitario y operación de campo.
  */
+@Immutable
 data class AnalysisResultUiState(
     val currentDestination: EcoVerdeMainDestination = EcoVerdeMainDestination.INICIO,
     val selectedTab: AnalysisResultTab = AnalysisResultTab.CLASIFICACION,
@@ -210,6 +236,7 @@ data class AnalysisResultUiState(
     val focusedMapTreeId: String? = null,
     val showUserLocationOnMap: Boolean = true,
     val mapTargetCoordinates: Pair<Double, Double>? = null,
+    val mapCameraRequestNonce: Long = 0L,
 
     // Búsqueda rápida de árbol en Wizard Paso 2
     val treeSearchQuery: String = "",
@@ -230,8 +257,8 @@ data class AnalysisResultUiState(
     // Asociación a Árbol (Corteza - RN-37) o Zona (Follaje - chk_arbol_o_zona)
     val associationMode: TargetAssociationMode = TargetAssociationMode.EXISTENTE,
     val selectedTreeId: String? = null,
-    val newTreeName: String = "Fresno - Calzada de los Poetas",
-    val newTreeSpecies: String = "Fresno (Fraxinus uhdei)",
+    val newTreeName: String = "",
+    val newTreeSpecies: String = PREDEFINED_TREE_SPECIES.first(),
     val selectedZoneId: String? = null,
     val newZoneName: String = "Zona II - Calzada de los Poetas",
     val newZoneRadiusMeters: String = "55.0",
@@ -260,6 +287,7 @@ data class AnalysisResultUiState(
     val availableTrees: List<TreeRecord> = emptyList(),
     val availableZones: List<FoliageZoneRecord> = emptyList(),
     val activeHotspots: List<InfestationFocus> = emptyList(),
+    val nearbyInfestedTrees: List<NearbyInfestedTreeAlert> = emptyList(),
     val proximityAlert: ProximityAlertUi? = null,
 
     // Mensajes informativos y de error
@@ -331,8 +359,9 @@ data class AnalysisResultUiState(
 
     val focusedMapTree: TreeRecord?
         get() = if (focusedMapTreeId != null) {
-            treeProgressionList.firstOrNull { it.tree.idArbol == focusedMapTreeId }?.tree
-                ?: availableTrees.firstOrNull { it.idArbol == focusedMapTreeId }
+            treeProgressionList.firstOrNull { it.tree.idArbol == focusedMapTreeId }?.let {
+                it.tree.copy(ultimoEstadoSanitario = it.currentStatus)
+            } ?: availableTrees.firstOrNull { it.idArbol == focusedMapTreeId }
         } else null
 
     companion object {
@@ -364,7 +393,7 @@ data class AnalysisResultUiState(
                         TreeRecord(
                             idArbol = recId ?: "virtual-${recName.trim().lowercase()}",
                             nombreEspecifico = recName.trim(),
-                            especie = recSpecies.ifBlank { "Fresno (Fraxinus uhdei)" },
+                            especie = recSpecies.ifBlank { "Fresno" },
                             latitud = rec.latitud,
                             longitud = rec.longitud,
                             fechaRegistroIso = rec.fechaCapturaIso,
@@ -509,10 +538,11 @@ data class AnalysisResultUiState(
                 } else 0
 
                 val dominant = when {
-                    avgDanado >= 35 -> "Necrosis / Dañado"
-                    avgRegular >= 30 -> "Estrés foliar activo"
-                    avgSano >= 45 -> "Follaje Sano y Vigoroso"
                     total == 0 -> "Sin tomas aéreas"
+                    avgDanado >= 35 -> "Necrosis / Dañado"
+                    avgDanado >= 25 && avgSano < 50 -> "Daño y estrés foliar"
+                    avgRegular >= 30 || avgDanado >= 20 -> "Estrés foliar activo"
+                    avgSano >= 50 -> "Follaje Sano y Vigoroso"
                     else -> "Monitoreo preventivo"
                 }
 

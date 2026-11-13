@@ -33,6 +33,7 @@ import com.descortezadores.ecoverde.domain.repository.ForestMonitoringRepository
 import com.descortezadores.ecoverde.domain.repository.SavedDetectionRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import android.content.Context
@@ -192,7 +193,8 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                 radioMetrosZona = radioMetrosZona,
                 rutaEvidenciaLocal = chromaticResult.originalImagePath,
                 rutaOverlayLocal = chromaticResult.segmentedOverlayImagePath,
-                estadoSincronizacion = SyncStatus.PENDIENTE.name
+                estadoSincronizacion = SyncStatus.PENDIENTE.name,
+                tipoInferencia = if (classificationResult.isOfflineExecution) "LOCAL" else "NUBE"
             )
 
             val cromaticoEntity = AnalisisCromaticoEntity.fromDomainModel(
@@ -213,14 +215,30 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                 ).toDomainRecord()
             )
         } catch (t: Throwable) {
-            Result.failure(IllegalStateException(SystemMessages.MSG33, t))
+            Result.failure(IllegalStateException(SystemMessages.MSG21, t))
         }
     }
 
     override fun observeAllDetections(): Flow<List<SavedDetectionRecord>> =
-        forestMonitoringDao.observeAllAnalysesWithChromatic().map { list ->
-            list.map { it.toDomainRecord() }
+        combine(
+            forestMonitoringDao.observeAllAnalysesWithChromatic(),
+            forestMonitoringDao.observeAllArboles(),
+            forestMonitoringDao.observeAllZonasFollaje()
+        ) { analyses, trees, zones ->
+            val treeById = trees.associateBy { it.idArbol }
+            val zoneById = zones.associateBy { it.idZona }
+            analyses.map { it.toDomainRecord(treeById, zoneById) }
         }
+
+    override suspend fun updateDetectionObservations(
+        idAnalisis: String,
+        observaciones: String?
+    ): Result<Unit> = runCatching {
+        forestMonitoringDao.updateAnalisisObservations(
+            idAnalisis = idAnalisis,
+            observaciones = observaciones?.trim()?.takeIf { it.isNotEmpty() }
+        )
+    }
 
     override fun observeDailyJourneySummary(): Flow<DailyJourneySummary> {
         val zone = ZoneId.systemDefault()
@@ -358,7 +376,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
             forestMonitoringDao.upsertArbol(offlineEntity)
             Result.success(offlineEntity.toDomainModel())
         } catch (t: Throwable) {
-            Result.failure(IllegalStateException(SystemMessages.MSG33, t))
+            Result.failure(IllegalStateException(SystemMessages.MSG21, t))
         }
     }
 
@@ -397,7 +415,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
 
             Result.success(updatedLocal.toDomainModel())
         } catch (t: Throwable) {
-            Result.failure(IllegalStateException(SystemMessages.MSG33, t))
+            Result.failure(IllegalStateException(SystemMessages.MSG21, t))
         }
     }
 
@@ -603,9 +621,10 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                 var anyUpdated = false
 
                 // 1. Descargar catálogo de árboles (GET /api/v1/arboles)
+                var remoteTrees = mutableListOf<ArbolEntity>()
                 val arbolesResp = runCatching { monitoringApiService.getArboles() }.getOrNull()
                 if (arbolesResp != null && arbolesResp.isSuccessful && arbolesResp.body() != null) {
-                    val remoteTrees = arbolesResp.body()!!.mapNotNull { dto ->
+                    remoteTrees = arbolesResp.body()!!.mapNotNull { dto ->
                         val id = dto.idArbol ?: return@mapNotNull null
                         val existing = forestMonitoringDao.getArbolById(id)
                         ArbolEntity(
@@ -622,7 +641,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                             idDispositivo = dto.idDispositivo,
                             pendienteSincronizar = false
                         )
-                    }
+                    }.toMutableList()
                     if (remoteTrees.isNotEmpty()) {
                         forestMonitoringDao.upsertAllArboles(remoteTrees)
                         anyUpdated = true
@@ -648,6 +667,121 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                     }
                     if (remoteZones.isNotEmpty()) {
                         forestMonitoringDao.upsertAllZonasFollaje(remoteZones)
+                        anyUpdated = true
+                    }
+                }
+
+                // 2.5 Descargar análisis e historial de capturas de la cuenta (GET /api/v1/analisis)
+                val analisisResp = runCatching { monitoringApiService.getAllAnalisis() }.getOrNull()
+                if (analisisResp != null && analisisResp.isSuccessful && analisisResp.body() != null) {
+                    val currentSession = sessionPreferencesManager.getCurrentSession()
+                    val brigadistaId = currentSession?.brigadistaId ?: ""
+                    val deviceId = DeviceIdentifierProvider.getHardwareDeviceUuid(context)
+                    val latestOutcomeByTree = mutableMapOf<String, Pair<Long, String>>()
+
+                    analisisResp.body()!!.forEach { dto ->
+                        val existing = forestMonitoringDao.getAnalysisWithChromaticById(dto.idAnalisis)
+                        if (existing != null && existing.analisis.estadoSincronizacion != SyncStatus.SINCRONIZADO.name) {
+                            return@forEach
+                        }
+                        val captureMillis = runCatching {
+                            Instant.parse(dto.fechaCaptura).toEpochMilli()
+                        }.getOrElse { System.currentTimeMillis() }
+
+                        val localFileExists = existing?.analisis?.rutaEvidenciaLocal
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { File(it).exists() } == true
+                        val resolvedLocalPath = if (localFileExists) {
+                            existing!!.analisis.rutaEvidenciaLocal
+                        } else {
+                            dto.rutaEvidencia.orEmpty()
+                        }
+                        val resolvedOverlayPath = existing?.analisis?.rutaOverlayLocal.orEmpty()
+
+                        val isInfested = dto.resultadoClasificacion.equals(
+                            ClassificationOutcome.INFESTADO.apiValue,
+                            ignoreCase = true
+                        )
+                        val cromaticoDto = dto.cromatico
+                        val pctSano = cromaticoDto?.pctSano ?: if (isInfested) 0.20 else 0.85
+                        val pctRegular = cromaticoDto?.pctRegular ?: 0.05
+                        val pctDanado = cromaticoDto?.pctDanado ?: if (isInfested) 0.75 else 0.05
+                        val pctIncierto = cromaticoDto?.pctIncierto ?: 0.0
+
+                        val resolvedTree = dto.idArbol?.let { forestMonitoringDao.getArbolById(it) }
+                        val resolvedZone = dto.idZona?.let { forestMonitoringDao.getZonaById(it) }
+
+                        val analisisEntity = AnalisisEntity(
+                            idAnalisis = dto.idAnalisis,
+                            brigadistaId = existing?.analisis?.brigadistaId?.ifBlank { brigadistaId } ?: brigadistaId,
+                            idDispositivo = existing?.analisis?.idDispositivo?.ifBlank { deviceId } ?: deviceId,
+                            tipoImagen = dto.tipoImagen,
+                            resultadoClasificacion = dto.resultadoClasificacion,
+                            confianza = dto.confianza ?: 0.0,
+                            probabilidadCrudaTflite = existing?.analisis?.probabilidadCrudaTflite
+                                ?: (dto.confianza ?: 0.0),
+                            latitudCaptura = dto.latitudCaptura,
+                            longitudCaptura = dto.longitudCaptura,
+                            precisionGpsMetros = existing?.analisis?.precisionGpsMetros,
+                            fechaCapturaIso = dto.fechaCaptura,
+                            fechaCapturaMillis = captureMillis,
+                            observaciones = dto.observaciones,
+                            idArbol = dto.idArbol,
+                            nombreArbolNuevo = existing?.analisis?.nombreArbolNuevo ?: resolvedTree?.nombreEspecifico,
+                            especieArbolNuevo = existing?.analisis?.especieArbolNuevo ?: resolvedTree?.especie,
+                            idZona = dto.idZona,
+                            nombreZonaNuevo = existing?.analisis?.nombreZonaNuevo ?: resolvedZone?.nombreZona,
+                            radioMetrosZona = existing?.analisis?.radioMetrosZona ?: resolvedZone?.radioMetros,
+                            rutaEvidenciaLocal = resolvedLocalPath,
+                            rutaOverlayLocal = resolvedOverlayPath,
+                            rutaEvidenciaRemota = dto.rutaEvidencia,
+                            estadoSincronizacion = SyncStatus.SINCRONIZADO.name,
+                            fechaSincronizacionIso = dto.fechaSincronizacion,
+                            tipoInferencia = existing?.analisis?.tipoInferencia ?: "NUBE"
+                        )
+
+                        val cromaticoEntity = AnalisisCromaticoEntity(
+                            idAnalisisCromatico = cromaticoDto?.idAnalisisCromatico
+                                ?: existing?.cromatico?.idAnalisisCromatico
+                                ?: UUID.randomUUID().toString(),
+                            idAnalisisFk = dto.idAnalisis,
+                            tipoMuestra = dto.tipoImagen,
+                            pctSano = pctSano,
+                            pctRegular = pctRegular,
+                            pctDanado = pctDanado,
+                            pctIncierto = pctIncierto,
+                            severidadBiologica = existing?.cromatico?.severidadBiologica
+                                ?: if (isInfested) "ALTA" else "BAJA",
+                            rutaImagenOriginal = resolvedLocalPath,
+                            rutaImagenSegmentada = resolvedOverlayPath,
+                            totalPixelesAnalizados = existing?.cromatico?.totalPixelesAnalizados ?: 10000,
+                            tiempoProcesamientoMs = existing?.cromatico?.tiempoProcesamientoMs ?: 0L,
+                            fechaAnalisisMillis = captureMillis,
+                            estadoSincronizacion = SyncStatus.SINCRONIZADO.name
+                        )
+
+                        forestMonitoringDao.saveFullAnalysisTransaction(analisisEntity, cromaticoEntity)
+
+                        if (!dto.idArbol.isNullOrBlank()) {
+                            val currentLatest = latestOutcomeByTree[dto.idArbol]
+                            if (currentLatest == null || captureMillis >= currentLatest.first) {
+                                latestOutcomeByTree[dto.idArbol] = captureMillis to dto.resultadoClasificacion
+                            }
+                        }
+                    }
+
+                    if (remoteTrees.isNotEmpty() && latestOutcomeByTree.isNotEmpty()) {
+                        val updatedTrees = remoteTrees.map { tree ->
+                            val latestOutcome = latestOutcomeByTree[tree.idArbol]?.second
+                            if (latestOutcome != null) {
+                                tree.copy(ultimoEstadoFitosanitario = latestOutcome)
+                            } else {
+                                tree
+                            }
+                        }
+                        forestMonitoringDao.upsertAllArboles(updatedTrees)
+                    }
+                    if (analisisResp.body()!!.isNotEmpty()) {
                         anyUpdated = true
                     }
                 }
@@ -819,7 +953,10 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
         }.getOrNull()
     }
 
-    private fun AnalisisConCromaticoRelation.toDomainRecord(): SavedDetectionRecord {
+    private fun AnalisisConCromaticoRelation.toDomainRecord(
+        treeById: Map<String, ArbolEntity> = emptyMap(),
+        zoneById: Map<String, ZonaFollajeEntity> = emptyMap()
+    ): SavedDetectionRecord {
         val sampleType = SampleType.fromApiValue(analisis.tipoImagen)
         val outcome = ClassificationOutcome.fromApiValue(analisis.resultadoClasificacion)
         val syncStatus = runCatching {
@@ -828,10 +965,15 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
 
         val targetAssociation: TargetAssociation = if (sampleType == SampleType.CORTEZA) {
             if (!analisis.idArbol.isNullOrBlank()) {
+                val catalogTree = treeById[analisis.idArbol]
                 TargetAssociation.CortezaTarget.ExistingTree(
                     idArbol = analisis.idArbol,
-                    nombreEspecifico = analisis.nombreArbolNuevo ?: "Árbol Catalogado",
-                    especie = analisis.especieArbolNuevo ?: "Fresno (Fraxinus uhdei)"
+                    nombreEspecifico = catalogTree?.nombreEspecifico
+                        ?: analisis.nombreArbolNuevo?.takeIf { it.isNotBlank() }
+                        ?: "Árbol Catalogado",
+                    especie = catalogTree?.especie
+                        ?: analisis.especieArbolNuevo?.takeIf { it.isNotBlank() }
+                        ?: "Fresno (Fraxinus uhdei)"
                 )
             } else {
                 TargetAssociation.CortezaTarget.NewTree(
@@ -842,10 +984,13 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
             }
         } else {
             if (!analisis.idZona.isNullOrBlank()) {
+                val catalogZone = zoneById[analisis.idZona]
                 TargetAssociation.FollajeTarget.ExistingZone(
                     idZona = analisis.idZona,
-                    nombreZona = analisis.nombreZonaNuevo ?: "Zona Catalogada",
-                    radioMetros = analisis.radioMetrosZona ?: 50.0
+                    nombreZona = catalogZone?.nombreZona
+                        ?: analisis.nombreZonaNuevo?.takeIf { it.isNotBlank() }
+                        ?: "Zona Catalogada",
+                    radioMetros = catalogZone?.radioMetros ?: analisis.radioMetrosZona ?: 50.0
                 )
             } else {
                 TargetAssociation.FollajeTarget.NewZone(
@@ -873,7 +1018,54 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
             originalImagePath = analisis.rutaEvidenciaLocal,
             overlayImagePath = analisis.rutaOverlayLocal,
             syncStatus = syncStatus,
-            chromaticResult = cromatico?.toDomainModel()
+            chromaticResult = cromatico?.toDomainModel(),
+            isOfflineExecution = analisis.tipoInferencia != "NUBE",
+            executionBadgeLabel = if (analisis.tipoInferencia == "NUBE") "NUBE" else "LOCAL"
         )
+    }
+
+    override suspend fun resolveEvidenceFile(pathOrUrl: String): File? = withContext(ioDispatcher) {
+        if (pathOrUrl.isBlank()) return@withContext null
+
+        val localFile = File(pathOrUrl)
+        if (localFile.exists() && localFile.length() > 0L) {
+            return@withContext localFile
+        }
+
+        val isRemoteUrl = pathOrUrl.startsWith("http://") ||
+            pathOrUrl.startsWith("https://") ||
+            pathOrUrl.contains("/evidencias/")
+        if (!isRemoteUrl) return@withContext null
+
+        val filename = pathOrUrl.substringAfterLast("/").substringBefore("?").trim()
+        if (filename.isBlank()) return@withContext null
+
+        val cacheDir = File(context.cacheDir, "evidencias_cache").apply { mkdirs() }
+        val cacheFile = File(cacheDir, filename)
+        if (cacheFile.exists() && cacheFile.length() > 0L) {
+            return@withContext cacheFile
+        }
+
+        val response = runCatching { monitoringApiService.downloadEvidencia(filename) }.getOrNull()
+        val body = if (response != null && response.isSuccessful) response.body() else null
+        if (body == null) return@withContext null
+
+        val tempFile = File(cacheDir, "$filename.tmp")
+        val downloaded = runCatching {
+            body.byteStream().use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (tempFile.exists() && tempFile.length() > 0L) {
+                if (cacheFile.exists()) cacheFile.delete()
+                tempFile.renameTo(cacheFile)
+            } else {
+                tempFile.delete()
+                false
+            }
+        }.getOrDefault(false)
+
+        if (downloaded && cacheFile.exists() && cacheFile.length() > 0L) cacheFile else null
     }
 }

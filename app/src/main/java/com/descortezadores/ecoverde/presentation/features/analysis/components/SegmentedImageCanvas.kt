@@ -211,8 +211,9 @@ fun SegmentedImageCanvas(
                     }
 
                     if (displayBitmap != null) {
+                        val imageBitmap = remember(displayBitmap) { displayBitmap.asImageBitmap() }
                         Image(
-                            bitmap = displayBitmap.asImageBitmap(),
+                            bitmap = imageBitmap,
                             contentDescription = "Imagen segmentada cromáticamente por secciones",
                             modifier = Modifier
                                 .fillMaxSize()

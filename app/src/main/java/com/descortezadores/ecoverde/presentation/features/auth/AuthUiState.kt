@@ -78,6 +78,7 @@ data class AuthUiState(
     val confirmNewPassword: String = "",
     val authMode: AuthMode = AuthMode.LOGIN,
     val isLoading: Boolean = false,
+    val isCheckingSession: Boolean = true,
     val activeSession: BrigadistaSession? = null,
     val openCvStatus: OpenCvStatus = OpenCvStatus.Uninitialized,
     val isBackendReachable: Boolean = false,

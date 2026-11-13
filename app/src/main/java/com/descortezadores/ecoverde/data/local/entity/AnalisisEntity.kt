@@ -103,7 +103,10 @@ data class AnalisisEntity(
     val fechaSincronizacionIso: String? = null,
 
     @ColumnInfo(name = "ultimo_error_sincronizacion")
-    val ultimoErrorSincronizacion: String? = null
+    val ultimoErrorSincronizacion: String? = null,
+
+    @ColumnInfo(name = "tipo_inferencia")
+    val tipoInferencia: String = "LOCAL"
 ) {
     init {
         require(!(idArbol != null && idZona != null)) {

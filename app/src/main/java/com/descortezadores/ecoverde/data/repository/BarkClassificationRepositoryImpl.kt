@@ -79,10 +79,17 @@ class BarkClassificationRepositoryImpl @Inject constructor(
     }
 
     private suspend fun classifyViaCloud(bitmap: Bitmap): Result<ClassificationResult> {
-        val outputStream = ByteArrayOutputStream()
-        // Calidad 85% para balance óptimo de transferencia y fidelidad visual
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-        val imageBytes = outputStream.toByteArray()
+        val uploadBitmap = downscaleForCloud(bitmap, maxDimensionPx = CLOUD_MAX_DIMENSION_PX)
+        val imageBytes = try {
+            val outputStream = ByteArrayOutputStream()
+            // Calidad 85% sobre máx. 1024 px para carga rápida (<200 KB) sin exceder límites de API Gateway
+            uploadBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+            outputStream.toByteArray()
+        } finally {
+            if (uploadBitmap !== bitmap && !uploadBitmap.isRecycled) {
+                uploadBitmap.recycle()
+            }
+        }
 
         val requestBody = imageBytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData("imagen", "corteza.jpg", requestBody)
@@ -97,7 +104,7 @@ class BarkClassificationRepositoryImpl @Inject constructor(
         val (outcome, confidence) = ClassificationOutcome.evaluateFromProbability(
             infestationProbability = dto.probabilidadInfestado,
             decisionThreshold = dto.umbral,
-            enforceStrictRn24 = false
+            enforceStrictRn24 = true
         )
 
         val visualEvidences = buildVisualEvidences(outcome, dto.probabilidadInfestado)
@@ -155,8 +162,21 @@ class BarkClassificationRepositoryImpl @Inject constructor(
         }
     }
 
+    private fun downscaleForCloud(source: Bitmap, maxDimensionPx: Int): Bitmap {
+        val width = source.width
+        val height = source.height
+        val longest = maxOf(width, height)
+        if (longest <= maxDimensionPx || longest <= 0) return source
+
+        val scale = maxDimensionPx.toFloat() / longest.toFloat()
+        val targetWidth = (width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(source, targetWidth, targetHeight, true)
+    }
+
     companion object {
         private const val TAG = "BarkClassifRepo"
-        private const val CLOUD_INFERENCE_TIMEOUT_MS = 7000L
+        private const val CLOUD_INFERENCE_TIMEOUT_MS = 15_000L
+        private const val CLOUD_MAX_DIMENSION_PX = 1024
     }
 }

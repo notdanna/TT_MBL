@@ -13,6 +13,7 @@ import com.descortezadores.ecoverde.presentation.features.analysis.AnalysisResul
 import com.descortezadores.ecoverde.presentation.features.analysis.EcoVerdeMainDestination
 import com.descortezadores.ecoverde.presentation.features.analysis.HistoryFilterOption
 import com.descortezadores.ecoverde.presentation.features.analysis.HomeWorkTab
+import com.descortezadores.ecoverde.presentation.features.analysis.PREDEFINED_TREE_SPECIES
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -313,5 +314,72 @@ class Phase5PresentationUiStateTest {
         // sync status: 1 sincronizado, 1 pendiente -> SyncStatus.PENDIENTE
         assertEquals(SyncStatus.PENDIENTE, prog.syncStatus)
         assertEquals(1, state.filteredZoneProgressions.size)
+    }
+
+    @Test
+    fun `computeZoneProgressions reporta dano foliar cuando dano es relevante vs sano y RN24 estricto exige certeza`() {
+        val zonaMixta = FoliageZoneRecord(
+            idZona = "zona-mixta",
+            nombreZona = "Zona Mixta Chapultepec",
+            latitudCentro = 19.4200,
+            longitudCentro = -99.1850,
+            radioMetros = 50.0,
+            fechaRegistroIso = "2026-10-16T18:00:00Z",
+            descripcion = "Zona mixta",
+            idCuenta = "brig-1",
+            idDispositivo = "dev-1"
+        )
+        val chromMixta = ChromaticAnalysisResult(
+            analysisId = "cap-mix-1",
+            sampleType = SampleType.FOLLAJE,
+            originalImagePath = "/tmp/m1.jpg",
+            segmentedOverlayImagePath = "/tmp/om1.jpg",
+            totalPixelsAnalyzed = 10000,
+            bands = emptyList(),
+            pctSano = 0.35,
+            pctRegular = 0.10,
+            pctDanado = 0.34,
+            pctIncierto = 0.21,
+            biologicalSeverityScore = 52.0,
+            severityLevel = com.descortezadores.ecoverde.domain.model.BiologicalSeverityLevel.MODERADA,
+            dominantCategory = DiagnosticCategory.DANADO,
+            timestampMillis = 1000L
+        )
+        val record = SavedDetectionRecord(
+            idAnalisis = "cap-mix-1",
+            brigadistaId = "brig-1",
+            idDispositivo = "dev-1",
+            sampleType = SampleType.FOLLAJE,
+            classificationOutcome = ClassificationOutcome.SANO,
+            confidence = 0.80,
+            rawTfliteProbability = 0.20,
+            latitud = 19.4200,
+            longitud = -99.1850,
+            fechaCapturaIso = "2026-10-16T18:10:00Z",
+            fechaCapturaMillis = 1000L,
+            observaciones = null,
+            targetAssociation = TargetAssociation.FollajeTarget.ExistingZone(
+                idZona = "zona-mixta",
+                nombreZona = "Zona Mixta Chapultepec",
+                radioMetros = 50.0
+            ),
+            originalImagePath = "/tmp/m1.jpg",
+            overlayImagePath = "/tmp/om1.jpg",
+            syncStatus = SyncStatus.SINCRONIZADO,
+            chromaticResult = chromMixta
+        )
+        val state = AnalysisResultUiState(
+            availableZones = listOf(zonaMixta),
+            allRecords = listOf(record)
+        )
+        assertEquals("Daño y estrés foliar", state.zoneProgressionList.first().currentDominantSignal)
+
+        val (strictOutcome, _) = ClassificationOutcome.evaluateFromProbability(
+            infestationProbability = 0.68,
+            decisionThreshold = 0.50,
+            enforceStrictRn24 = true
+        )
+        assertEquals(ClassificationOutcome.NO_DETERMINADO, strictOutcome)
+        assertEquals(PREDEFINED_TREE_SPECIES.first(), state.newTreeSpecies)
     }
 }

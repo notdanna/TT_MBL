@@ -76,8 +76,7 @@ fun ColorCategoryFilterChips(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                modifier = Modifier.animateContentSize(animationSpec = EcoVerdeMotion.interactiveSpring())
+                )
             )
 
             bands.forEach { band ->
@@ -110,8 +109,7 @@ fun ColorCategoryFilterChips(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                         selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    modifier = Modifier.animateContentSize(animationSpec = EcoVerdeMotion.interactiveSpring())
+                    )
                 )
             }
         }

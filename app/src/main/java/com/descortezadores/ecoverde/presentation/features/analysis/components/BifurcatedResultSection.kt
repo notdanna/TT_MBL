@@ -55,6 +55,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -177,25 +178,30 @@ private fun BarkResultSection(
 ) {
     val clf = uiState.classificationResult
     val confidence = (clf?.confidencePercentage ?: 0f).toInt()
-    val isConfident = confidence > 75
-    val outcome = clf?.outcome ?: ClassificationOutcome.NO_DETERMINADO
+    val isConfident = (clf?.confidence ?: 0.0) >= ClassificationOutcome.MIN_CONFIDENCE_THRESHOLD
+    val rawOutcome = clf?.outcome ?: ClassificationOutcome.NO_DETERMINADO
+    val outcome = if (!isConfident || rawOutcome == ClassificationOutcome.NO_DETERMINADO) {
+        ClassificationOutcome.NO_DETERMINADO
+    } else {
+        rawOutcome
+    }
 
     // Colores oficiales especificados en el documento:
     // Infestado: contenedor #FFEBEE, tipografía #C62828
     // Sano: contenedor #E8F5E9, tipografía #2E7D32
     // No determinado (o confianza <= 75%): contenedor #FFF8E1, tipografía #F57F17
-    val (cardContainerColor, cardTextColor, cardTitleText) = when {
-        !isConfident || outcome == ClassificationOutcome.NO_DETERMINADO -> Triple(
+    val (cardContainerColor, cardTextColor, cardTitleText) = when (outcome) {
+        ClassificationOutcome.NO_DETERMINADO -> Triple(
             Color(0xFFFFF8E1),
             Color(0xFFF57F17),
             "NO DETERMINADO"
         )
-        outcome == ClassificationOutcome.INFESTADO -> Triple(
+        ClassificationOutcome.INFESTADO -> Triple(
             Color(0xFFFFEBEE),
             Color(0xFFC62828),
             "INFESTADO"
         )
-        else -> Triple(
+        ClassificationOutcome.SANO -> Triple(
             Color(0xFFE8F5E9),
             Color(0xFF2E7D32),
             "SANO"
@@ -206,9 +212,7 @@ private fun BarkResultSection(
         ?.tree?.nombreEspecifico ?: uiState.newTreeName.ifBlank { "Árbol en estudio" }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = EcoVerdeMotion.standardSpatialSpring()),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // NIVEL 1: Diagnóstico Inmediato (Visible sin desplazamiento)
@@ -349,21 +353,24 @@ private fun BarkResultSection(
                     contentAlignment = Alignment.Center
                 ) {
                     if (barkOrigBmp != null) {
+                        val origImageBitmap = remember(barkOrigBmp) { barkOrigBmp.asImageBitmap() }
                         // Fotografía original base
                         Image(
-                            bitmap = barkOrigBmp.asImageBitmap(),
+                            bitmap = origImageBitmap,
                             contentDescription = "Muestra analizada",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
 
                         // En análisis cromático, la segmentación aparece sobre la misma primer imagen
+                        val overlayBmp = uiState.segmentedOverlayBitmap
                         if (uiState.selectedTab == AnalysisResultTab.ANALISIS_COLOR &&
-                            uiState.segmentedOverlayBitmap != null &&
+                            overlayBmp != null &&
                             uiState.overlayOpacityAlpha > 0f
                         ) {
+                            val overlayImageBitmap = remember(overlayBmp) { overlayBmp.asImageBitmap() }
                             Image(
-                                bitmap = uiState.segmentedOverlayBitmap.asImageBitmap(),
+                                bitmap = overlayImageBitmap,
                                 contentDescription = "Máscara de análisis cromático",
                                 contentScale = ContentScale.Crop,
                                 alpha = uiState.overlayOpacityAlpha,
@@ -431,7 +438,8 @@ private fun BarkResultSection(
                     BarkManagementAndRegistryTab(
                         uiState = uiState,
                         outcome = outcome,
-                        onObservationsChanged = onObservationsChanged
+                        onObservationsChanged = onObservationsChanged,
+                        onSaveObservationsClick = onSaveAndFinishClick
                     )
                 }
 
@@ -518,7 +526,8 @@ private fun BarkResultSection(
 private fun BarkManagementAndRegistryTab(
     uiState: AnalysisResultUiState,
     outcome: ClassificationOutcome,
-    onObservationsChanged: (String) -> Unit
+    onObservationsChanged: (String) -> Unit,
+    onSaveObservationsClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -531,50 +540,63 @@ private fun BarkManagementAndRegistryTab(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Protocolo de actuación fitosanitaria derivado de la NOM-019-SEMARNAT-2017
-            Text(
-                text = "Protocolo de Actuación (NOM-019-SEMARNAT-2017)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            val protocolColor = when (outcome) {
+                ClassificationOutcome.INFESTADO -> StatusInfestedRed
+                ClassificationOutcome.SANO -> StatusHealthyGreen
+                ClassificationOutcome.NO_DETERMINADO -> StatusUncertainAmber
+            }
 
-            val (protocolTitle, protocolText, protocolColor) = when (outcome) {
-                ClassificationOutcome.INFESTADO -> Triple(
-                    "Tratamiento Fitosanitario Requerido",
-                    "• Delimitar radio de amortiguamiento de 100 m.\n• Derribo, troceo y descortezado manual/mecánico del fuste afectado antes de la emergencia de adultos.\n• Aplicación de aspersión biológica/química en corteza conforme a la NOM-019.\n• Notificación de foco activo a la brigada forestal de SEDEMA.",
-                    StatusInfestedRed
+            val (protocolTitle, protocolBody) = when (outcome) {
+                ClassificationOutcome.INFESTADO -> (
+                    "Protocolo de Saneamiento NOM-019" to
+                        "• Derribo, troceo y descortezado inmediato para eliminar larvas y adultos.\n" +
+                        "• Quema controlada, enterrado o aplicación de tratamiento químico autorizado.\n" +
+                        "• Inspeccionar árboles colindantes en un radio de 100 m para contener el foco."
                 )
-                ClassificationOutcome.SANO -> Triple(
-                    "Mantenimiento Preventivo Forestal",
-                    "• Mantener monitoreo trimestral preventivo.\n• Vigilar desprendimientos o microperforaciones en base y fuste medio.\n• Asegurar riego y nutrición para mantener defensas de resina activas.",
-                    StatusHealthyGreen
+                ClassificationOutcome.NO_DETERMINADO -> (
+                    "Verificación y Recaptura Requerida" to
+                        "• La certeza del análisis no supera el 75%; se recomienda repetir la toma.\n" +
+                        "• Capturar con iluminación uniforme a 20–40 cm sin sombras fuertes ni desenfoque.\n" +
+                        "• Realizar inspección visual directa de grumos de resina y aserrín en el fuste."
                 )
-                ClassificationOutcome.NO_DETERMINADO -> Triple(
-                    "Re-inspección Requerida",
-                    "• No se detecta un patrón concluyente con certeza > 75%.\n• Realizar inspección ocular terrestre adicional y repetir toma a distancia de 20-30 cm perpendicular a la corteza.",
-                    StatusUncertainAmber
+                ClassificationOutcome.SANO -> (
+                    "Mantenimiento Recomendado" to
+                        "• Mantener monitoreo trimestral preventivo.\n" +
+                        "• Vigilar desprendimientos o microperforaciones en punta, base y fuste.\n" +
+                        "• Asegurar riego y nutrición para mantener defensas de resina activas."
                 )
             }
 
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = protocolColor.copy(alpha = 0.1f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = protocolTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = protocolColor
-                    )
-                    Text(
-                        text = protocolText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = protocolColor.copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = protocolTitle,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = protocolColor
+                        )
+                        Text(
+                            text = protocolBody,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
+
+                Text(
+                    text = "Referencia: NOM-019-SEMARNAT-2017",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -589,12 +611,36 @@ private fun BarkManagementAndRegistryTab(
             OutlinedTextField(
                 value = uiState.fieldObservations,
                 onValueChange = onObservationsChanged,
-                placeholder = { Text("Notas de inspección fitosanitaria (ej. exudado de resina, grumos de aserrín)...") },
+                placeholder = { Text("Notas de inspección fitosanitaria...") },
                 shape = MaterialTheme.shapes.medium,
                 minLines = 3,
                 maxLines = 5,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (uiState.isInspectingHistoricalRecord) {
+                Button(
+                    onClick = onSaveObservationsClick,
+                    enabled = !uiState.isSavingOffline,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (uiState.isSavingOffline) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Guardando observaciones...")
+                    } else {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Guardar observaciones", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     }
 }
@@ -696,9 +742,7 @@ private fun FoliageResultSection(
         ?.nombreZona ?: uiState.newZoneName.ifBlank { "Zona II - Calzada de los Poetas" }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = EcoVerdeMotion.standardSpatialSpring()),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // ENCABEZADO TERRITORIAL CON IMAGEN, OVERLAY Y CONTROL DE OPACIDAD
@@ -775,17 +819,20 @@ private fun FoliageResultSection(
                         modifier = imageModifier,
                         contentAlignment = Alignment.Center
                     ) {
+                        val origImageBitmap = remember(origBmp) { origBmp.asImageBitmap() }
                         Image(
-                            bitmap = origBmp.asImageBitmap(),
+                            bitmap = origImageBitmap,
                             contentDescription = "Captura de follaje",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
 
                         // El análisis aparece sobre la misma imagen
-                        if (uiState.segmentedOverlayBitmap != null && uiState.overlayOpacityAlpha > 0f) {
+                        val overlayBmp = uiState.segmentedOverlayBitmap
+                        if (overlayBmp != null && uiState.overlayOpacityAlpha > 0f) {
+                            val overlayImageBitmap = remember(overlayBmp) { overlayBmp.asImageBitmap() }
                             Image(
-                                bitmap = uiState.segmentedOverlayBitmap.asImageBitmap(),
+                                bitmap = overlayImageBitmap,
                                 contentDescription = "Máscara de análisis cromático foliar",
                                 contentScale = ContentScale.Fit,
                                 alpha = uiState.overlayOpacityAlpha,
@@ -925,6 +972,30 @@ private fun FoliageResultSection(
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (uiState.isInspectingHistoricalRecord) {
+                    Button(
+                        onClick = onSaveAndFinishClick,
+                        enabled = !uiState.isSavingOffline,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isSavingOffline) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardando observaciones...")
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardar observaciones", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
 

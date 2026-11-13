@@ -100,6 +100,7 @@ class AnalysisResultViewModel @Inject constructor(
                         zoneProgressionList = zonesProg
                     )
                 }
+                checkProximityToHotspots()
             }
         }
         viewModelScope.launch(Dispatchers.Default) {
@@ -114,6 +115,7 @@ class AnalysisResultViewModel @Inject constructor(
                         treeProgressionList = treesProg
                     )
                 }
+                checkProximityToHotspots()
             }
         }
         viewModelScope.launch(Dispatchers.Default) {
@@ -150,8 +152,38 @@ class AnalysisResultViewModel @Inject constructor(
                 )
             }
             refreshCurrentDeviceLocation()
+            startRealtimeLocationTracking()
             if (health) {
                 forestMonitoringRepository.refreshRemoteCatalogsAndFoci()
+            }
+        }
+    }
+
+    private var locationTrackingJob: Job? = null
+
+    /**
+     * Inicia la escucha continua de ubicación GPS en tiempo real para actualizar el marcador
+     * del usuario en el mapa y recalcular alertas en radio de 100 m automáticamente.
+     */
+    fun startRealtimeLocationTracking() {
+        if (locationTrackingJob?.isActive == true) return
+        locationTrackingJob = viewModelScope.launch {
+            ImageMetadataAndLocationHelper.observeLocationUpdates(appContext).collect { gpsFix ->
+                if (gpsFix.isLiveGps) {
+                    _uiState.update { state ->
+                        if (!state.captureHasExifGps) {
+                            state.copy(
+                                captureLatitude = gpsFix.latitude,
+                                captureLongitude = gpsFix.longitude,
+                                captureGpsAccuracyMeters = gpsFix.accuracyMeters,
+                                captureLocationSourceLabel = "GPS en tiempo real"
+                            )
+                        } else {
+                            state
+                        }
+                    }
+                    checkProximityToHotspots()
+                }
             }
         }
     }
@@ -161,6 +193,7 @@ class AnalysisResultViewModel @Inject constructor(
      * mostrando una imagen con coordenadas EXIF propias.
      */
     fun refreshCurrentDeviceLocation() {
+        startRealtimeLocationTracking()
         viewModelScope.launch {
             val currentState = _uiState.value
             val gpsFix = ImageMetadataAndLocationHelper.getCurrentDeviceLocation(
@@ -314,6 +347,8 @@ class AnalysisResultViewModel @Inject constructor(
                 selectedTreeDetailId = treeId ?: state.selectedTreeDetailId,
                 selectedZoneDetailId = null,
                 isInspectingHistoricalRecord = false,
+                newTreeName = "",
+                fieldObservations = "",
                 originalBitmap = null,
                 uncroppedBitmap = null,
                 segmentedOverlayBitmap = null,
@@ -350,10 +385,21 @@ class AnalysisResultViewModel @Inject constructor(
     }
 
     fun updateCroppedBitmap(bitmap: Bitmap) {
+        if (bitmap.width < ImageMetadataAndLocationHelper.MIN_IMAGE_DIMENSION_PX ||
+            bitmap.height < ImageMetadataAndLocationHelper.MIN_IMAGE_DIMENSION_PX
+        ) {
+            _uiState.update {
+                it.copy(
+                    errorMessage = "${SystemMessages.MSG24} El recorte debe medir al menos 300×300 px (recorte actual: ${bitmap.width}×${bitmap.height} px)."
+                )
+            }
+            return
+        }
         _uiState.update {
             it.copy(
                 originalBitmap = bitmap,
-                uncroppedBitmap = it.uncroppedBitmap ?: it.originalBitmap
+                uncroppedBitmap = it.uncroppedBitmap ?: it.originalBitmap,
+                errorMessage = null
             )
         }
     }
@@ -392,6 +438,20 @@ class AnalysisResultViewModel @Inject constructor(
                 focusedMapTreeId = tree.idArbol,
                 showUserLocationOnMap = false,
                 mapTargetCoordinates = Pair(lat, lon),
+                mapCameraRequestNonce = it.mapCameraRequestNonce + 1L,
+                showMapBottomSheet = false
+            )
+        }
+    }
+
+    fun focusCoordinatesOnMap(lat: Double, lon: Double) {
+        _uiState.update {
+            it.copy(
+                currentDestination = EcoVerdeMainDestination.MAPA,
+                focusedMapTreeId = null,
+                showUserLocationOnMap = false,
+                mapTargetCoordinates = Pair(lat, lon),
+                mapCameraRequestNonce = it.mapCameraRequestNonce + 1L,
                 showMapBottomSheet = false
             )
         }
@@ -403,7 +463,8 @@ class AnalysisResultViewModel @Inject constructor(
             it.copy(
                 focusedMapTreeId = null,
                 showUserLocationOnMap = true,
-                mapTargetCoordinates = Pair(it.captureLatitude, it.captureLongitude)
+                mapTargetCoordinates = Pair(it.captureLatitude, it.captureLongitude),
+                mapCameraRequestNonce = it.mapCameraRequestNonce + 1L
             )
         }
     }
@@ -423,7 +484,7 @@ class AnalysisResultViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "Ingresa un nombre o identificador para el árbol (ej. Fresno95).") }
             return
         }
-        val species = state.newTreeSpecies.trim().ifBlank { "Fresno (Fraxinus uhdei)" }
+        val species = state.newTreeSpecies.trim().ifBlank { PREDEFINED_TREE_SPECIES.first() }
         viewModelScope.launch {
             val res = forestMonitoringRepository.registerTree(
                 nombreEspecifico = name,
@@ -439,7 +500,7 @@ class AnalysisResultViewModel @Inject constructor(
                             associationMode = TargetAssociationMode.EXISTENTE,
                             selectedTreeId = createdTree.idArbol,
                             selectedTreeDetailId = createdTree.idArbol,
-                            statusBannerMessage = "Sección creada para '${createdTree.nombreEspecifico}' (${createdTree.especie}). Ahora puedes tomar fotos de su progreso."
+                            statusBannerMessage = "Sección creada para '${createdTree.nombreEspecifico}'. Ahora puedes tomar fotos de su progreso."
                         )
                     }
                 },
@@ -491,6 +552,19 @@ class AnalysisResultViewModel @Inject constructor(
                 )
             }
             val currentState = _uiState.value
+            val validationError = ImageMetadataAndLocationHelper.validateGalleryUriPreconditions(
+                context = appContext,
+                uri = uri
+            )
+            if (validationError != null) {
+                _uiState.update {
+                    it.copy(
+                        isProcessingVision = false,
+                        errorMessage = validationError
+                    )
+                }
+                return@launch
+            }
             val payload = ImageMetadataAndLocationHelper.processGalleryUri(
                 context = appContext,
                 uri = uri,
@@ -501,11 +575,32 @@ class AnalysisResultViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isProcessingVision = false,
-                        errorMessage = SystemMessages.MSG15
+                        errorMessage = SystemMessages.MSG18
                     )
                 }
                 return@launch
             }
+            val locationBanner = if (payload.hasExifGps) {
+                val distFromDevice = haversineDistanceMeters(
+                    currentState.captureLatitude,
+                    currentState.captureLongitude,
+                    payload.latitude,
+                    payload.longitude
+                )
+                if (distFromDevice >= 20.0) {
+                    val distLabel = if (distFromDevice >= 1000.0) {
+                        String.format(java.util.Locale.US, "%.2f km", distFromDevice / 1000.0)
+                    } else {
+                        "${distFromDevice.toInt()} m"
+                    }
+                    "Ubicación tomada de los metadatos de la imagen (a $distLabel de tu ubicación actual)."
+                } else {
+                    "Ubicación tomada de los metadatos EXIF de la imagen."
+                }
+            } else {
+                "La imagen no contiene ubicación en sus metadatos; se usó tu ubicación actual."
+            }
+
             if (currentState.wizardStep == WizardStep.CAPTURA) {
                 _uiState.update {
                     it.copy(
@@ -519,14 +614,16 @@ class AnalysisResultViewModel @Inject constructor(
                         captureLocationSourceLabel = payload.locationSourceLabel,
                         captureExifDateTimeIso = payload.exifDateTimeIso,
                         captureExifCameraModel = payload.exifCameraModel,
-                        statusBannerMessage = null,
+                        statusBannerMessage = locationBanner,
                         errorMessage = null
                     )
                 }
+                checkProximityToHotspots()
             } else {
                 analyzeCapturedOrImportedBitmap(
                     bitmap = payload.bitmap,
-                    extractedPayload = payload
+                    extractedPayload = payload,
+                    locationBannerOverride = locationBanner
                 )
             }
         }
@@ -548,6 +645,16 @@ class AnalysisResultViewModel @Inject constructor(
                 )
             }
             val currentState = _uiState.value
+            val validationError = ImageMetadataAndLocationHelper.validateImageFilePreconditions(captureFile)
+            if (validationError != null) {
+                _uiState.update {
+                    it.copy(
+                        isProcessingVision = false,
+                        errorMessage = validationError
+                    )
+                }
+                return@launch
+            }
             val payload = ImageMetadataAndLocationHelper.processCameraCaptureFile(
                 context = appContext,
                 captureFile = captureFile,
@@ -558,11 +665,32 @@ class AnalysisResultViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isProcessingVision = false,
-                        errorMessage = SystemMessages.MSG15
+                        errorMessage = SystemMessages.MSG18
                     )
                 }
                 return@launch
             }
+            val locationBanner = if (payload.hasExifGps) {
+                val distFromDevice = haversineDistanceMeters(
+                    currentState.captureLatitude,
+                    currentState.captureLongitude,
+                    payload.latitude,
+                    payload.longitude
+                )
+                if (distFromDevice >= 20.0) {
+                    val distLabel = if (distFromDevice >= 1000.0) {
+                        String.format(java.util.Locale.US, "%.2f km", distFromDevice / 1000.0)
+                    } else {
+                        "${distFromDevice.toInt()} m"
+                    }
+                    "Ubicación tomada de los metadatos de la imagen (a $distLabel de tu ubicación actual)."
+                } else {
+                    "Ubicación tomada de los metadatos EXIF de la imagen."
+                }
+            } else {
+                "La imagen no contiene ubicación en sus metadatos; se usó tu ubicación actual."
+            }
+
             if (currentState.wizardStep == WizardStep.CAPTURA) {
                 _uiState.update {
                     it.copy(
@@ -576,14 +704,16 @@ class AnalysisResultViewModel @Inject constructor(
                         captureLocationSourceLabel = payload.locationSourceLabel,
                         captureExifDateTimeIso = payload.exifDateTimeIso,
                         captureExifCameraModel = payload.exifCameraModel,
-                        statusBannerMessage = null,
+                        statusBannerMessage = locationBanner,
                         errorMessage = null
                     )
                 }
+                checkProximityToHotspots()
             } else {
                 analyzeCapturedOrImportedBitmap(
                     bitmap = payload.bitmap,
-                    extractedPayload = payload
+                    extractedPayload = payload,
+                    locationBannerOverride = locationBanner
                 )
             }
         }
@@ -592,7 +722,8 @@ class AnalysisResultViewModel @Inject constructor(
     fun analyzeCapturedOrImportedBitmap(
         bitmap: Bitmap,
         sampleTypeOverride: SampleType? = null,
-        extractedPayload: ExtractedImagePayload? = null
+        extractedPayload: ExtractedImagePayload? = null,
+        locationBannerOverride: String? = null
     ) {
         val effectiveSampleType = sampleTypeOverride ?: _uiState.value.sampleType
         currentAnalysisJob?.cancel()
@@ -663,7 +794,7 @@ class AnalysisResultViewModel @Inject constructor(
                     captureExifDateTimeIso = resolvedExifDateIso,
                     captureExifCameraModel = resolvedCameraModel,
                     errorMessage = null,
-                    statusBannerMessage = null
+                    statusBannerMessage = locationBannerOverride ?: if (resolvedHasExifGps) it.statusBannerMessage else null
                 )
             }
             checkProximityToHotspots()
@@ -675,7 +806,7 @@ class AnalysisResultViewModel @Inject constructor(
                 val currentAlpha = _uiState.value.overlayOpacityAlpha
 
                 // Inferencia híbrida de IA (Cloud si online, TFLite si offline) concurrente con OpenCV HSV
-                val tfliteDeferred = async {
+                val tfliteDeferred = async(Dispatchers.IO) {
                     if (effectiveSampleType == SampleType.CORTEZA) {
                         barkClassificationRepository.classifyBark(bitmap).getOrNull()
                     } else {
@@ -683,7 +814,7 @@ class AnalysisResultViewModel @Inject constructor(
                     }
                 }
 
-                val openCvDeferred = async {
+                val openCvDeferred = async(Dispatchers.Default) {
                     val masks = openCvColorSegmenter.segmentBitmapToMasks(bitmap, effectiveSampleType)
                     try {
                         val overlay = imageOverlayGenerator.generateOverlayBitmap(
@@ -791,8 +922,12 @@ class AnalysisResultViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isProcessingVision = false,
-                        errorMessage = e.message ?: SystemMessages.MSG15
+                        errorMessage = e.message ?: SystemMessages.MSG22
                     )
+                }
+            } finally {
+                if (_uiState.value.isProcessingVision) {
+                    _uiState.update { it.copy(isProcessingVision = false) }
                 }
             }
         }
@@ -913,7 +1048,9 @@ class AnalysisResultViewModel @Inject constructor(
 
     private fun checkProximityToHotspots() {
         val state = _uiState.value
-        val closest = state.activeHotspots.mapNotNull { focus ->
+
+        // 1. Verificar focos activos del backend en radio circular de 100 m
+        val closestHotspot = state.activeHotspots.mapNotNull { focus ->
             val distMeters = haversineDistanceMeters(
                 state.captureLatitude,
                 state.captureLongitude,
@@ -925,14 +1062,57 @@ class AnalysisResultViewModel @Inject constructor(
                     idFoco = focus.idFoco,
                     distanciaMetros = distMeters,
                     cantidadArbolesInfectados = focus.cantidadArbolesInfectados,
-                    mensajeAlerta = "Precaución: Te encuentras a ${distMeters.toInt()} m de un Foco Activo con ${focus.cantidadArbolesInfectados} árboles infestados."
+                    mensajeAlerta = "Precaución: Te encuentras a ${distMeters.toInt()} m de un Foco Activo con ${focus.cantidadArbolesInfectados} árboles infestados.",
+                    latitud = focus.latitudCentro,
+                    longitud = focus.longitudCentro
                 )
             } else {
                 null
             }
         }.minByOrNull { it.distanciaMetros }
 
-        _uiState.update { it.copy(proximityAlert = closest) }
+        // 2. Verificar árboles con infestación activa en radio circular de 100 m
+        val nearbyTrees = state.treeProgressionList.mapNotNull { prog ->
+            if (prog.currentStatus != ClassificationOutcome.INFESTADO) return@mapNotNull null
+            val latestCapture = prog.captures.firstOrNull()
+            val treeLat = prog.tree.latitud ?: latestCapture?.latitud ?: return@mapNotNull null
+            val treeLon = prog.tree.longitud ?: latestCapture?.longitud ?: return@mapNotNull null
+            val distMeters = haversineDistanceMeters(
+                state.captureLatitude,
+                state.captureLongitude,
+                treeLat,
+                treeLon
+            )
+            if (distMeters <= 100.0) {
+                NearbyInfestedTreeAlert(
+                    idArbol = prog.tree.idArbol,
+                    nombreArbol = prog.tree.nombreEspecifico,
+                    latitud = treeLat,
+                    longitud = treeLon,
+                    distanciaMetros = distMeters
+                )
+            } else {
+                null
+            }
+        }.sortedBy { it.distanciaMetros }
+
+        val effectiveProximityAlert = closestHotspot ?: nearbyTrees.firstOrNull()?.let { closestTree ->
+            ProximityAlertUi(
+                idFoco = closestTree.idArbol,
+                distanciaMetros = closestTree.distanciaMetros,
+                cantidadArbolesInfectados = nearbyTrees.size,
+                mensajeAlerta = "Precaución: '${closestTree.nombreArbol}' con infestación está a ${closestTree.distanciaMetros.toInt()} m de tu ubicación.",
+                latitud = closestTree.latitud,
+                longitud = closestTree.longitud
+            )
+        }
+
+        _uiState.update {
+            it.copy(
+                nearbyInfestedTrees = nearbyTrees,
+                proximityAlert = effectiveProximityAlert
+            )
+        }
     }
 
     private fun haversineDistanceMeters(
@@ -955,6 +1135,41 @@ class AnalysisResultViewModel @Inject constructor(
         val state = _uiState.value
         val clf = state.classificationResult ?: return
         val chrom = state.chromaticResult ?: return
+
+        if (state.isInspectingHistoricalRecord) {
+            viewModelScope.launch {
+                _uiState.update {
+                    it.copy(
+                        isSavingOffline = true,
+                        errorMessage = null,
+                        statusBannerMessage = null
+                    )
+                }
+                val result = forestMonitoringRepository.updateDetectionObservations(
+                    idAnalisis = chrom.analysisId,
+                    observaciones = state.fieldObservations
+                )
+                result.fold(
+                    onSuccess = {
+                        _uiState.update {
+                            it.copy(
+                                isSavingOffline = false,
+                                statusBannerMessage = "Observaciones actualizadas."
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.update {
+                            it.copy(
+                                isSavingOffline = false,
+                                errorMessage = "No se pudieron actualizar las observaciones: ${error.localizedMessage ?: "Error local"}"
+                            )
+                        }
+                    }
+                )
+            }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update {
@@ -981,7 +1196,7 @@ class AnalysisResultViewModel @Inject constructor(
                 } else {
                     TargetAssociation.CortezaTarget.NewTree(
                         nombreArbolNuevo = state.newTreeName.trim().ifBlank { "Árbol Chapultepec" },
-                        especieArbolNuevo = state.newTreeSpecies.trim().ifBlank { "Cedro blanco (Cupressus lusitanica)" },
+                        especieArbolNuevo = state.newTreeSpecies.trim().ifBlank { PREDEFINED_TREE_SPECIES.first() },
                         descripcion = state.fieldObservations.trim()
                     )
                 }
@@ -1083,7 +1298,7 @@ class AnalysisResultViewModel @Inject constructor(
                 onSuccess = { batchResult ->
                     val health = authRepository.checkBackendHealth().getOrDefault(true)
                     val msg = if (batchResult.errors.isEmpty()) {
-                        "${SystemMessages.MSG20} (${batchResult.totalSynced}/${batchResult.totalPendingFound} registros sincronizados)."
+                        "Sincronización completada (${batchResult.totalSynced}/${batchResult.totalPendingFound} registros sincronizados)."
                     } else {
                         "Sincronizados ${batchResult.totalSynced}/${batchResult.totalPendingFound}. Avisos: ${batchResult.errors.joinToString("; ")}"
                     }
@@ -1139,8 +1354,8 @@ class AnalysisResultViewModel @Inject constructor(
             outcome = record.classificationOutcome,
             confidence = record.confidence,
             rawInfestationProbability = record.rawTfliteProbability,
-            isOfflineExecution = true,
-            executionBadgeLabel = "LOCAL",
+            isOfflineExecution = record.isOfflineExecution,
+            executionBadgeLabel = record.executionBadgeLabel,
             visualEvidencesDetected = emptyList(),
             recommendation = recommendation,
             inferenceTimeMs = 0L
@@ -1220,7 +1435,8 @@ class AnalysisResultViewModel @Inject constructor(
         }
 
         currentAnalysisJob = viewModelScope.launch(Dispatchers.IO) {
-            val file = File(record.originalImagePath)
+            val file = forestMonitoringRepository.resolveEvidenceFile(record.originalImagePath)
+                ?: File(record.originalImagePath)
             var origBmp: Bitmap? = if (file.exists()) {
                 try {
                     val opts = BitmapFactory.Options().apply {

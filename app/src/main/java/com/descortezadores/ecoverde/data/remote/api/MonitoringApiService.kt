@@ -116,6 +116,9 @@ interface MonitoringApiService {
     // 6. Jornada Actual, Historial y Alertas NOM-019
     // -------------------------------------------------------------------------
 
+    @GET("api/v1/analisis")
+    suspend fun getAllAnalisis(): Response<List<AnalisisDetalleDto>>
+
     @GET("api/v1/analisis/jornada")
     suspend fun getAnalisisJornadaActual(): Response<List<AnalisisDetalleDto>>
 

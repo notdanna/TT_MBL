@@ -45,7 +45,7 @@ data class RecuperarPasswordRequestDto(
 
 data class RecuperarPasswordResponseDto(
     @SerializedName("mensaje") val mensaje: String,
-    @SerializedName("codigoRecuperacion") val codigoRecuperacion: String,
+    @SerializedName("codigoRecuperacion") val codigoRecuperacion: String? = null,
     @SerializedName("vigenciaHoras") val vigenciaHoras: Int
 )
 

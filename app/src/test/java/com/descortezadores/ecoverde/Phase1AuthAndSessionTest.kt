@@ -232,7 +232,7 @@ class Phase1AuthAndSessionTest {
 
         val req1 = repo.requestPasswordRecovery("experto@chapultepec.gob.mx")
         assertTrue(req1.isSuccess)
-        val token1 = req1.getOrNull()!!.codigoRecuperacion
+        val token1 = requireNotNull(req1.getOrNull()!!.codigoRecuperacion)
 
         // Restablecer con contraseñas que no coinciden -> MSG9
         val mismatch = repo.resetPassword(token1, "NuevaPass123!", "OtraPass123!")

@@ -77,7 +77,7 @@ class TfliteBarkClassifier @Inject constructor(
                 val (outcome, classConfidence) = ClassificationOutcome.evaluateFromProbability(
                     infestationProbability = rawProb,
                     decisionThreshold = DECISION_THRESHOLD,
-                    enforceStrictRn24 = false
+                    enforceStrictRn24 = true
                 )
 
                 Log.i(
