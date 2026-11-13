@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Sombra elíptica suave en la base del árbol -->
+    <path
+        android:fillColor="#38081B0E"
+        android:pathData="M39,79.5 C39,77.8 45.7,76.5 54,76.5 C62.3,76.5 69,77.8 69,79.5 C69,81.2 62.3,82.5 54,82.5 C45.7,82.5 39,81.2 39,79.5 Z" />
+
+    <!-- Tronco de pino con volumen continuo (unión central recta en x=54) -->
+    <path
+        android:fillColor="#FFD7B38C"
+        android:pathData="M49.5,64 L54,64 L54,81 L51.5,81 C50.4,81 49.5,80.1 49.5,79 Z" />
+    <path
+        android:fillColor="#FFB28254"
+        android:pathData="M54,64 L58.5,64 L58.5,79 C58.5,80.1 57.6,81 56.5,81 L54,81 Z" />
+
+    <!-- Sombra del follaje proyectada sobre el tronco -->
+    <path
+        android:fillColor="#38000000"
+        android:pathData="M49.5,66.5 L58.5,66.5 L58.5,69.5 L49.5,69.5 Z" />
+
+    <!-- NIVEL INFERIOR DEL DOSEL -->
+    <!-- Mitad izquierda iluminada -->
+    <path
+        android:fillColor="#FFDFF2E2"
+        android:pathData="M54,42.5 L33.8,63.8 C32.3,65.4 33.4,68 35.6,68 L54,68 Z" />
+    <!-- Mitad derecha con volumen -->
+    <path
+        android:fillColor="#FFAADBB6"
+        android:pathData="M54,42.5 L74.2,63.8 C75.7,65.4 74.6,68 72.4,68 L54,68 Z" />
+
+    <!-- Sombra proyectada por el nivel medio sobre el nivel inferior -->
+    <path
+        android:fillColor="#240A2914"
+        android:pathData="M40.5,56 L67.5,56 L70.2,59 L37.8,59 Z" />
+
+    <!-- NIVEL MEDIO DEL DOSEL -->
+    <!-- Mitad izquierda iluminada -->
+    <path
+        android:fillColor="#FFEEF8F0"
+        android:pathData="M54,33 L37.6,51.8 C36.2,53.4 37.3,56 39.5,56 L54,56 Z" />
+    <!-- Mitad derecha con volumen -->
+    <path
+        android:fillColor="#FFC1E6CA"
+        android:pathData="M54,33 L70.4,51.8 C71.8,53.4 70.7,56 68.5,56 L54,56 Z" />
+
+    <!-- Sombra proyectada por el nivel superior sobre el nivel medio -->
+    <path
+        android:fillColor="#240A2914"
+        android:pathData="M44.5,44.2 L63.5,44.2 L65.8,47 L42.2,47 Z" />
+
+    <!-- NIVEL SUPERIOR DEL DOSEL (Copa redondeada en el ápice) -->
+    <!-- Mitad izquierda iluminada -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,24.8 C53.2,24.8 52.4,25.2 51.8,25.9 L41.6,39.8 C40.4,41.4 41.5,44.2 43.6,44.2 L54,44.2 Z" />
+    <!-- Mitad derecha con volumen -->
+    <path
+        android:fillColor="#FFD6F0DC"
+        android:pathData="M54,24.8 C54.8,24.8 55.6,25.2 56.2,25.9 L66.4,39.8 C67.6,41.4 66.5,44.2 64.4,44.2 L54,44.2 Z" />
+
+</vector>
