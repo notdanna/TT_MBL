@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Silueta monocromática para iconos temáticos de Android 13+ -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M50.5,67 L57.5,67 L57.5,78.5 C57.5,79.6 56.6,80.5 55.5,80.5 L52.5,80.5 C51.4,80.5 50.5,79.6 50.5,78.5 Z" />
+
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M54,25.5 L66.2,40.5 C67.4,42 66.4,44.2 64.5,44.2 L61.5,44.2 L70.5,52 C71.8,53.5 70.8,55.8 68.8,55.8 L64.5,55.8 L74.5,64.5 C75.9,66 74.8,68.5 72.7,68.5 L35.3,68.5 C33.2,68.5 32.1,66 33.5,64.5 L43.5,55.8 L39.2,55.8 C37.2,55.8 36.2,53.5 37.5,52 L46.5,44.2 L43.5,44.2 C41.6,44.2 40.6,42 41.8,40.5 Z" />
+
+</vector>

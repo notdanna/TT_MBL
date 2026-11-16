@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Fondo degradado verde bosque profundo (Paleta Oficial EcoVerde) -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="18"
+                android:startY="12"
+                android:endX="90"
+                android:endY="96"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF2D6A3E" />
+                <item android:offset="0.55" android:color="#FF1E4B2B" />
+                <item android:offset="1.0" android:color="#FF12301B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Halo circular sutil de resplandor central (simboliza el radio de monitoreo fitosanitario) -->
+    <path
+        android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0"
+        android:fillColor="#14FFFFFF" />
+    <path
+        android:pathData="M54,54m-25,0a25,25 0,1 1,50 0a25,25 0,1 1,-50 0"
+        android:fillColor="#12A5D6A7" />
+
+</vector>
