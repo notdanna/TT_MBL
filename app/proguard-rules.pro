@@ -1,0 +1,2 @@
+-keep class org.opencv.** { *; }
+-keep class com.descortezadores.ecoverde.data.remote.dto.** { *; }
