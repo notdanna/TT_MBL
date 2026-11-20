@@ -46,6 +46,7 @@ Aplicación móvil nativa en Android (Jetpack Compose + Material 3) para la dete
 ## Documentación del Proyecto
 
 - [`docs/Manual_Usuario_App_Movil.md`](docs/Manual_Usuario_App_Movil.md): Manual de usuario de la aplicación móvil EcoVerde (onboarding, análisis en campo, mapa offline, sincronización y solución de problemas).
+- [`docs/Manual_Usuario_Plataforma_Web.md`](docs/Manual_Usuario_Plataforma_Web.md): Manual de usuario de la plataforma web EcoVerde (`Sheets TT`).
 - [`AGENTS.md`](AGENTS.md): Guía de desarrollo, arquitectura y estándares para agentes de IA y desarrolladores.
 - [`docs/Base_Conocimiento_TT_Descortezadores.md`](docs/Base_Conocimiento_TT_Descortezadores.md): Marco teórico biológico, especies de pino y NOM-019-SEMARNAT-2017.
 - [`docs/Guia de uso de APIs del backend.md`](docs/Guia de uso de APIs del backend.md): Contratos de la API REST del backend.

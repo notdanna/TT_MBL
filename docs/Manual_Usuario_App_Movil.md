@@ -120,9 +120,11 @@ No existe autorregistro público en la aplicación; su cuenta debe ser dada de a
 > - Si ya inició sesión previamente en ese teléfono o se encuentra en una zona sin señal durante una jornada autorizada, puede usar el botón **Acceso Rápido Brigadista Offline** para ingresar inmediatamente con la sesión local de campo.
 > - La sesión móvil permanece abierta hasta que usted decida cerrarla manualmente.
 
-![Formulario de inicio de sesión de EcoVerde con campos de correo, contraseña, botón Iniciar sesión, Acceso Rápido Brigadista Offline e indicador de conectividad](photos/login.png)
-
-*Figura 1. Pantalla de inicio de sesión e indicador de conectividad de EcoVerde.*
+<p align="center">
+  <img src="photos/login.png" alt="Formulario de inicio de sesión de EcoVerde con campos de correo, contraseña, botón Iniciar sesión, Acceso Rápido Brigadista Offline e indicador de conectividad" width="280" />
+  <br />
+  <em>Figura 1. Pantalla de inicio de sesión e indicador de conectividad de EcoVerde.</em>
+</p>
 
 ### 2.4 Recuperación de Contraseña
 
@@ -153,9 +155,11 @@ Al iniciar sesión, accederá a la vista principal organizada bajo lineamientos 
    - **Alertas:** Avisos de proximidad en campo, historial general y cola de sincronización.
    - **Perfil:** Datos de la cuenta, resumen operativo, información normativa, limpieza local y cierre de sesión.
 
-![Anatomía de la pantalla principal de Inicio en EcoVerde con barra superior, Resumen de la Jornada, Lista de Trabajo del Día, botón flotante Nueva Captura y barra de navegación inferior](photos/inicio.png)
-
-*Figura 2. Anatomía de la pantalla principal (Inicio) de EcoVerde.*
+<p align="center">
+  <img src="photos/inicio.png" alt="Anatomía de la pantalla principal de Inicio en EcoVerde con barra superior, Resumen de la Jornada, Lista de Trabajo del Día, botón flotante Nueva Captura y barra de navegación inferior" width="280" />
+  <br />
+  <em>Figura 2. Anatomía de la pantalla principal (Inicio) de EcoVerde.</em>
+</p>
 
 ---
 
@@ -217,17 +221,23 @@ Al iniciar sesión, accederá a la vista principal organizada bajo lineamientos 
 
 **Resultado esperado:** El análisis queda almacenado localmente en el teléfono con estado *Pendiente* (o se sincroniza automáticamente en segundo plano si hay internet) y actualiza el *Resumen de la Jornada*.
 
-![Paso 3 del asistente de captura mostrando el editor interactivo de recorte de corteza y botones de encuadre](photos/asistente_cap_paso3_corteza.png)
+<p align="center">
+  <img src="photos/asistente_cap_paso3_corteza.png" alt="Paso 3 del asistente de captura mostrando el editor interactivo de recorte de corteza y botones de encuadre" width="280" />
+  <br />
+  <em>Figura 3. Paso 3 del asistente de captura: editor interactivo de recorte y encuadre.</em>
+</p>
 
-*Figura 3. Paso 3 del asistente de captura: editor interactivo de recorte y encuadre.*
+<p align="center">
+  <img src="photos/paso4_resultado.png" alt="Paso 4 del asistente de captura mostrando diagnóstico INFESTADO con 95% de certeza en nube y protocolo de saneamiento NOM-019" width="280" />
+  <br />
+  <em>Figura 4. Paso 4 del asistente de captura (Corteza): dictamen fitosanitario y protocolo NOM-019.</em>
+</p>
 
-![Paso 4 del asistente de captura mostrando diagnóstico INFESTADO con 95% de certeza en nube y protocolo de saneamiento NOM-019](photos/paso4_resultado.png)
-
-*Figura 4. Paso 4 del asistente de captura (Corteza): dictamen fitosanitario y protocolo NOM-019.*
-
-![Paso 4 de monitoreo de dosel mostrando máscara cromática sobre la imagen, barra de opacidad y distribución porcentual de coloración foliar](photos/follaje_paso4_color.png)
-
-*Figura 5. Paso 4 del asistente de captura (Follaje / Dosel): máscara cromática y distribución de coloración foliar.*
+<p align="center">
+  <img src="photos/follaje_paso4_color.png" alt="Paso 4 de monitoreo de dosel mostrando máscara cromática sobre la imagen, barra de opacidad y distribución porcentual de coloración foliar" width="280" />
+  <br />
+  <em>Figura 5. Paso 4 del asistente de captura (Follaje / Dosel): máscara cromática y distribución de coloración foliar.</em>
+</p>
 
 ---
 
@@ -250,9 +260,11 @@ Al iniciar sesión, accederá a la vista principal organizada bajo lineamientos 
 
 **Resultado esperado:** Visualización fluida y 100% offline del arbolado georreferenciado y áreas de alerta sanitaria.
 
-![Pestaña Mapa de EcoVerde mostrando mapa vectorial offline, ubicación del usuario, marcadores de árboles por estado sanitario, botón Mi GPS y selector Catálogo](photos/mapa.png)
-
-*Figura 6. Pestaña Mapa sin conexión con marcadores fitosanitarios, ubicación GPS y acceso al catálogo.*
+<p align="center">
+  <img src="photos/mapa.png" alt="Pestaña Mapa de EcoVerde mostrando mapa vectorial offline, ubicación del usuario, marcadores de árboles por estado sanitario, botón Mi GPS y selector Catálogo" width="280" />
+  <br />
+  <em>Figura 6. Pestaña Mapa sin conexión con marcadores fitosanitarios, ubicación GPS y acceso al catálogo.</em>
+</p>
 
 ---
 
@@ -272,9 +284,11 @@ Al iniciar sesión, accederá a la vista principal organizada bajo lineamientos 
 
 **Resultado esperado:** Todos los registros locales cambian su estado a *Sincronizado* y quedan disponibles para consulta en la plataforma web.
 
-![Pestaña Alertas mostrando el bloque de Alertas Fitosanitarias en Campo con radio menor a 100 metros y el Historial General de Inspecciones con filtros](photos/seccion_alertas.png)
-
-*Figura 7. Pestaña Alertas: avisos de proximidad sanitaria (<100 m) e historial general de inspecciones.*
+<p align="center">
+  <img src="photos/seccion_alertas.png" alt="Pestaña Alertas mostrando el bloque de Alertas Fitosanitarias en Campo con radio menor a 100 metros y el Historial General de Inspecciones con filtros" width="280" />
+  <br />
+  <em>Figura 7. Pestaña Alertas: avisos de proximidad sanitaria (&lt;100 m) e historial general de inspecciones.</em>
+</p>
 
 ---
 
