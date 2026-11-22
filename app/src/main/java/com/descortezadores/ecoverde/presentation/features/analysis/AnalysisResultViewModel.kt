@@ -171,6 +171,11 @@ class AnalysisResultViewModel @Inject constructor(
         locationTrackingJob = viewModelScope.launch {
             ImageMetadataAndLocationHelper.observeLocationUpdates(appContext).collect { gpsFix ->
                 if (gpsFix.isLiveGps) {
+                    val current = _uiState.value
+                    val movedMeaningfully = kotlin.math.abs(current.deviceLatitude - gpsFix.latitude) > 5e-6 ||
+                        kotlin.math.abs(current.deviceLongitude - gpsFix.longitude) > 5e-6 ||
+                        current.deviceGpsAccuracyMeters != gpsFix.accuracyMeters
+                    if (!movedMeaningfully) return@collect
                     _uiState.update { state ->
                         val lockCaptureCoords = state.captureHasExifGps ||
                             state.originalBitmap != null ||
@@ -230,6 +235,8 @@ class AnalysisResultViewModel @Inject constructor(
                 currentDestination = destination,
                 selectedTreeDetailId = if (destination != EcoVerdeMainDestination.INICIO) null else it.selectedTreeDetailId,
                 selectedZoneDetailId = if (destination != EcoVerdeMainDestination.INICIO) null else it.selectedZoneDetailId,
+                isInspectingHistoricalRecord = if (destination != EcoVerdeMainDestination.ANALIZAR) false else it.isInspectingHistoricalRecord,
+                inspectingAnalysisId = if (destination != EcoVerdeMainDestination.ANALIZAR) null else it.inspectingAnalysisId,
                 errorMessage = null
             )
         }
@@ -252,7 +259,7 @@ class AnalysisResultViewModel @Inject constructor(
                 selectedTreeId = treeId,
                 selectedZoneDetailId = null,
                 homeWorkTab = HomeWorkTab.ARBOLES,
-                fieldObservations = tree?.descripcion ?: "",
+                detailObservations = tree?.descripcion ?: "",
                 associationMode = TargetAssociationMode.EXISTENTE,
                 sampleType = SampleType.CORTEZA,
                 errorMessage = null
@@ -273,7 +280,7 @@ class AnalysisResultViewModel @Inject constructor(
                 selectedZoneId = zoneId,
                 selectedTreeDetailId = null,
                 homeWorkTab = HomeWorkTab.ZONAS_FOLLAJE,
-                fieldObservations = zone?.descripcion ?: "",
+                detailObservations = zone?.descripcion ?: "",
                 associationMode = TargetAssociationMode.EXISTENTE,
                 sampleType = SampleType.FOLLAJE,
                 errorMessage = null
@@ -306,6 +313,8 @@ class AnalysisResultViewModel @Inject constructor(
                 overlayOpacityAlpha = 0.0f,
                 isProcessingVision = false,
                 isInspectingHistoricalRecord = false,
+                inspectingAnalysisId = null,
+                fieldObservations = "",
                 captureLatitude = it.deviceLatitude,
                 captureLongitude = it.deviceLongitude,
                 captureGpsAccuracyMeters = it.deviceGpsAccuracyMeters,
@@ -339,6 +348,8 @@ class AnalysisResultViewModel @Inject constructor(
                 overlayOpacityAlpha = 0.0f,
                 isProcessingVision = false,
                 isInspectingHistoricalRecord = false,
+                inspectingAnalysisId = null,
+                fieldObservations = "",
                 captureLatitude = it.deviceLatitude,
                 captureLongitude = it.deviceLongitude,
                 captureGpsAccuracyMeters = it.deviceGpsAccuracyMeters,
@@ -366,6 +377,7 @@ class AnalysisResultViewModel @Inject constructor(
                 selectedTreeDetailId = treeId ?: state.selectedTreeDetailId,
                 selectedZoneDetailId = null,
                 isInspectingHistoricalRecord = false,
+                inspectingAnalysisId = null,
                 newTreeName = "",
                 fieldObservations = "",
                 originalBitmap = null,
@@ -395,25 +407,44 @@ class AnalysisResultViewModel @Inject constructor(
     fun repeatCapture() {
         currentAnalysisJob?.cancel()
         overlayRenderJob?.cancel()
-        _uiState.update {
-            it.copy(
-                wizardStep = WizardStep.CAPTURA,
-                originalBitmap = null,
-                uncroppedBitmap = null,
-                classificationResult = null,
-                chromaticResult = null,
-                segmentedOverlayBitmap = null,
-                overlayOpacityAlpha = 0.0f,
-                isProcessingVision = false,
-                captureLatitude = it.deviceLatitude,
-                captureLongitude = it.deviceLongitude,
-                captureGpsAccuracyMeters = it.deviceGpsAccuracyMeters,
-                captureHasExifGps = false,
-                captureLocationSourceLabel = "Ubicación GPS del dispositivo",
-                captureExifDateTimeIso = null,
-                captureExifCameraModel = null,
-                statusBannerMessage = null
-            )
+        _uiState.update { state ->
+            if (state.isInspectingHistoricalRecord) {
+                state.copy(
+                    currentDestination = state.previousDestinationBeforeInspect,
+                    wizardStep = WizardStep.MODALIDAD,
+                    isInspectingHistoricalRecord = false,
+                    inspectingAnalysisId = null,
+                    fieldObservations = "",
+                    originalBitmap = null,
+                    uncroppedBitmap = null,
+                    classificationResult = null,
+                    chromaticResult = null,
+                    segmentedOverlayBitmap = null,
+                    overlayOpacityAlpha = 0.0f,
+                    isProcessingVision = false,
+                    statusBannerMessage = null,
+                    errorMessage = null
+                )
+            } else {
+                state.copy(
+                    wizardStep = WizardStep.CAPTURA,
+                    originalBitmap = null,
+                    uncroppedBitmap = null,
+                    classificationResult = null,
+                    chromaticResult = null,
+                    segmentedOverlayBitmap = null,
+                    overlayOpacityAlpha = 0.0f,
+                    isProcessingVision = false,
+                    captureLatitude = state.deviceLatitude,
+                    captureLongitude = state.deviceLongitude,
+                    captureGpsAccuracyMeters = state.deviceGpsAccuracyMeters,
+                    captureHasExifGps = false,
+                    captureLocationSourceLabel = "Ubicación GPS del dispositivo",
+                    captureExifDateTimeIso = null,
+                    captureExifCameraModel = null,
+                    statusBannerMessage = null
+                )
+            }
         }
     }
 
@@ -524,7 +555,7 @@ class AnalysisResultViewModel @Inject constructor(
                 especie = species,
                 latitud = state.deviceLatitude,
                 longitud = state.deviceLongitude,
-                descripcion = state.fieldObservations.trim()
+                descripcion = null
             )
             res.fold(
                 onSuccess = { createdTree ->
@@ -1094,6 +1125,10 @@ class AnalysisResultViewModel @Inject constructor(
         _uiState.update { it.copy(fieldObservations = value) }
     }
 
+    fun onDetailObservationsChanged(value: String) {
+        _uiState.update { it.copy(detailObservations = value) }
+    }
+
     fun onHistoryFilterChanged(filter: HistoryFilterOption) {
         _uiState.update { it.copy(historyFilter = filter) }
     }
@@ -1178,11 +1213,13 @@ class AnalysisResultViewModel @Inject constructor(
             )
         }
 
-        _uiState.update {
-            it.copy(
-                nearbyInfestedTrees = nearbyTrees,
-                proximityAlert = effectiveProximityAlert
-            )
+        if (state.nearbyInfestedTrees != nearbyTrees || state.proximityAlert != effectiveProximityAlert) {
+            _uiState.update {
+                it.copy(
+                    nearbyInfestedTrees = nearbyTrees,
+                    proximityAlert = effectiveProximityAlert
+                )
+            }
         }
     }
 
@@ -1216,16 +1253,19 @@ class AnalysisResultViewModel @Inject constructor(
                         statusBannerMessage = null
                     )
                 }
+                val targetAnalysisId = state.inspectingAnalysisId ?: chrom.analysisId
                 val result = forestMonitoringRepository.updateDetectionObservations(
-                    idAnalisis = chrom.analysisId,
+                    idAnalisis = targetAnalysisId,
                     observaciones = state.fieldObservations
                 )
                 result.fold(
                     onSuccess = {
+                        DeteccionesSyncWorker.enqueueImmediateSync(appContext)
                         _uiState.update {
                             it.copy(
                                 isSavingOffline = false,
-                                statusBannerMessage = "Observaciones actualizadas."
+                                fieldObservations = state.fieldObservations.trim(),
+                                statusBannerMessage = "Observaciones de la captura actualizadas."
                             )
                         }
                     },
@@ -1270,7 +1310,7 @@ class AnalysisResultViewModel @Inject constructor(
                     TargetAssociation.CortezaTarget.NewTree(
                         nombreArbolNuevo = state.newTreeName.trim().ifBlank { "Árbol Chapultepec" },
                         especieArbolNuevo = state.newTreeSpecies.trim().ifBlank { PREDEFINED_TREE_SPECIES.first() },
-                        descripcion = state.fieldObservations.trim()
+                        descripcion = null
                     )
                 }
             } else {
@@ -1285,7 +1325,7 @@ class AnalysisResultViewModel @Inject constructor(
                     TargetAssociation.FollajeTarget.NewZone(
                         nombreZonaNuevo = state.newZoneName.trim().ifBlank { "Zona Follaje Chapultepec" },
                         radioMetrosZona = state.newZoneRadiusMeters.toDoubleOrNull() ?: 50.0,
-                        descripcion = state.fieldObservations.trim()
+                        descripcion = null
                     )
                 }
             }
@@ -1299,7 +1339,7 @@ class AnalysisResultViewModel @Inject constructor(
                 latitud = state.captureLatitude,
                 longitud = state.captureLongitude,
                 precisionGpsMetros = state.captureGpsAccuracyMeters,
-                observaciones = state.fieldObservations.trim(),
+                observaciones = state.fieldObservations.trim().ifBlank { null },
                 targetAssociation = targetAssociation
             )
 
@@ -1330,6 +1370,7 @@ class AnalysisResultViewModel @Inject constructor(
                             chromaticResult = null,
                             overlayOpacityAlpha = 0.0f,
                             isInspectingHistoricalRecord = false,
+                            fieldObservations = "",
                             captureLatitude = it.deviceLatitude,
                             captureLongitude = it.deviceLongitude,
                             captureGpsAccuracyMeters = it.deviceGpsAccuracyMeters,
@@ -1489,6 +1530,11 @@ class AnalysisResultViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isProcessingVision = true,
+                previousDestinationBeforeInspect = if (it.currentDestination != EcoVerdeMainDestination.ANALIZAR) {
+                    it.currentDestination
+                } else {
+                    it.previousDestinationBeforeInspect
+                },
                 currentDestination = EcoVerdeMainDestination.ANALIZAR,
                 wizardStep = WizardStep.RESULTADOS,
                 sampleType = record.sampleType,
@@ -1496,13 +1542,10 @@ class AnalysisResultViewModel @Inject constructor(
                 selectedCategoryFilter = null,
                 overlayOpacityAlpha = if (record.sampleType == SampleType.FOLLAJE) 0.70f else 0.0f,
                 isInspectingHistoricalRecord = true,
+                inspectingAnalysisId = record.idAnalisis,
                 classificationResult = clf,
                 chromaticResult = chromatic,
-                fieldObservations = if (record.sampleType == SampleType.FOLLAJE) {
-                    record.observaciones ?: ""
-                } else {
-                    it.fieldObservations
-                },
+                fieldObservations = record.observaciones ?: "",
                 selectedTreeId = targetTreeId ?: it.selectedTreeId,
                 newTreeName = if (record.sampleType == SampleType.CORTEZA) treeOrZoneName else it.newTreeName,
                 selectedZoneId = targetZoneId ?: it.selectedZoneId,
@@ -1691,7 +1734,7 @@ class AnalysisResultViewModel @Inject constructor(
                             isSavingOffline = false,
                             availableTrees = updatedList,
                             treeProgressionList = treesProg,
-                            fieldObservations = newObservations.trim(),
+                            detailObservations = newObservations.trim(),
                             statusBannerMessage = "Observaciones de '${updatedTree.nombreEspecifico}' actualizadas correctamente."
                         )
                     }
@@ -1770,7 +1813,7 @@ class AnalysisResultViewModel @Inject constructor(
                             isSavingOffline = false,
                             availableZones = updatedList,
                             zoneProgressionList = zonesProg,
-                            fieldObservations = newObservations.trim(),
+                            detailObservations = newObservations.trim(),
                             statusBannerMessage = "Observaciones de '${zone.nombreZona}' actualizadas correctamente."
                         )
                     }

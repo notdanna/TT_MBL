@@ -1,5 +1,6 @@
 package com.descortezadores.ecoverde.data.remote.api
 
+import com.descortezadores.ecoverde.data.remote.dto.ActualizarAnalisisObservacionesDto
 import com.descortezadores.ecoverde.data.remote.dto.AnalisisDetalleDto
 import com.descortezadores.ecoverde.data.remote.dto.ArbolDto
 import com.descortezadores.ecoverde.data.remote.dto.CloudClassificationResponseDto
@@ -125,6 +126,12 @@ interface MonitoringApiService {
     @GET("api/v1/analisis/{id}")
     suspend fun getAnalisisDetalle(
         @Path("id") idAnalisis: String
+    ): Response<AnalisisDetalleDto>
+
+    @PUT("api/v1/analisis/{id}")
+    suspend fun updateAnalisisObservaciones(
+        @Path("id") idAnalisis: String,
+        @Body body: ActualizarAnalisisObservacionesDto
     ): Response<AnalisisDetalleDto>
 
     @GET("api/v1/estadisticas/focos")

@@ -21,6 +21,7 @@
       "type": "fill",
       "source": "protomaps",
       "source-layer": "earth",
+      "filter": ["==", ["geometry-type"], "Polygon"],
       "paint": {
         "fill-color": "#F1F4F0"
       }
@@ -30,6 +31,7 @@
       "type": "fill",
       "source": "protomaps",
       "source-layer": "landcover",
+      "filter": ["==", ["geometry-type"], "Polygon"],
       "paint": {
         "fill-color": "#C8E6C9",
         "fill-opacity": 0.75
@@ -40,6 +42,7 @@
       "type": "fill",
       "source": "protomaps",
       "source-layer": "landuse",
+      "filter": ["==", ["geometry-type"], "Polygon"],
       "paint": {
         "fill-color": "#D7ECD9",
         "fill-opacity": 0.65
@@ -50,8 +53,74 @@
       "type": "fill",
       "source": "protomaps",
       "source-layer": "water",
+      "filter": ["==", ["geometry-type"], "Polygon"],
       "paint": {
         "fill-color": "#90CAF9"
+      }
+    },
+    {
+      "id": "water-river-canal",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["==", ["geometry-type"], "LineString"],
+        ["match", ["get", "kind"], ["river", "canal"], true, false]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#90CAF9",
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, 1.2,
+          14, 2.6,
+          16, 4.2
+        ],
+        "line-opacity": [
+          "case",
+          ["==", ["get", "tunnel"], true],
+          0.35,
+          0.9
+        ]
+      }
+    },
+    {
+      "id": "water-stream",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "water",
+      "minzoom": 12,
+      "filter": [
+        "all",
+        ["==", ["geometry-type"], "LineString"],
+        ["!", ["match", ["get", "kind"], ["river", "canal"], true, false]]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#90CAF9",
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, 0.8,
+          14, 1.4,
+          16, 2.2
+        ],
+        "line-opacity": [
+          "case",
+          ["==", ["get", "tunnel"], true],
+          0.35,
+          0.85
+        ]
       }
     },
     {
@@ -59,6 +128,7 @@
       "type": "fill",
       "source": "protomaps",
       "source-layer": "buildings",
+      "filter": ["==", ["geometry-type"], "Polygon"],
       "paint": {
         "fill-color": "#E0E4E1",
         "fill-outline-color": "#C9D0CB",
@@ -70,6 +140,7 @@
       "type": "line",
       "source": "protomaps",
       "source-layer": "roads",
+      "filter": ["==", ["geometry-type"], "LineString"],
       "paint": {
         "line-color": "#CFD8DC",
         "line-width": 3.5
@@ -80,6 +151,7 @@
       "type": "line",
       "source": "protomaps",
       "source-layer": "roads",
+      "filter": ["==", ["geometry-type"], "LineString"],
       "paint": {
         "line-color": "#FFFFFF",
         "line-width": 2.0
@@ -90,6 +162,7 @@
       "type": "line",
       "source": "protomaps",
       "source-layer": "boundaries",
+      "filter": ["==", ["geometry-type"], "LineString"],
       "paint": {
         "line-color": "#90A4AE",
         "line-width": 1.0
@@ -100,7 +173,11 @@
       "type": "symbol",
       "source": "protomaps",
       "source-layer": "water",
-      "filter": ["has", "name"],
+      "filter": [
+        "all",
+        ["has", "name"],
+        ["!=", ["geometry-type"], "LineString"]
+      ],
       "minzoom": 11,
       "layout": {
         "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
@@ -114,6 +191,36 @@
         ],
         "text-letter-spacing": 0.08,
         "symbol-placement": "point"
+      },
+      "paint": {
+        "text-color": "#1565C0",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "water-line-label",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["has", "name"],
+        ["==", ["geometry-type"], "LineString"]
+      ],
+      "minzoom": 12,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name:es"], ["get", "name"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, 9.5,
+          16, 12.0
+        ],
+        "text-letter-spacing": 0.05,
+        "symbol-placement": "line"
       },
       "paint": {
         "text-color": "#1565C0",

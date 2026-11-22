@@ -1,5 +1,6 @@
 package com.descortezadores.ecoverde.domain.model
 
+import androidx.compose.runtime.Immutable
 import kotlin.math.roundToInt
 
 /**
@@ -69,6 +70,7 @@ enum class ClassificationOutcome(
 /**
  * Resultado inmutable de la inferencia local con TensorFlow Lite (RF-08, RF-09, RN-22 a RN-24, RN-45).
  */
+@Immutable
 data class ClassificationResult(
     val outcome: ClassificationOutcome,
     val confidence: Double,

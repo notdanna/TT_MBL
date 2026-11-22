@@ -1,5 +1,6 @@
 package com.descortezadores.ecoverde.domain.model
 
+import androidx.compose.runtime.Immutable
 import kotlin.math.roundToInt
 
 /**
@@ -14,6 +15,7 @@ import kotlin.math.roundToInt
  * @property colorHex Color hexadecimal oficial para renderizado en UI y overlay.
  * @property layerMaskImagePath Ruta opcional en almacenamiento interno de la máscara aislada para filtrado por chips.
  */
+@Immutable
 data class ColorBandResult(
     val category: DiagnosticCategory,
     val pixelCount: Int,

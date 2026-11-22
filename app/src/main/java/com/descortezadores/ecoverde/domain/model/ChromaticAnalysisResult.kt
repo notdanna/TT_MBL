@@ -1,5 +1,7 @@
 package com.descortezadores.ecoverde.domain.model
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Nivel de severidad biológica global calculado a partir de la distribución cromática HSV.
  */
@@ -28,6 +30,7 @@ enum class BiologicalSeverityLevel(
 /**
  * Resultado integral e inmutable del análisis cromático HSV con OpenCV (RN-46 a RN-50).
  */
+@Immutable
 data class ChromaticAnalysisResult(
     val analysisId: String,
     val sampleType: SampleType,

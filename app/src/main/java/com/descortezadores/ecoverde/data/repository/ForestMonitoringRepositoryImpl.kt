@@ -14,6 +14,7 @@ import com.descortezadores.ecoverde.data.local.entity.FocoInfestacionEntity
 import com.descortezadores.ecoverde.data.local.entity.ZonaFollajeEntity
 import com.descortezadores.ecoverde.data.remote.api.AuthApiService
 import com.descortezadores.ecoverde.data.remote.api.MonitoringApiService
+import com.descortezadores.ecoverde.data.remote.dto.ActualizarAnalisisObservacionesDto
 import com.descortezadores.ecoverde.data.remote.dto.ArbolDto
 import com.descortezadores.ecoverde.data.remote.dto.SyncItemDto
 import com.descortezadores.ecoverde.data.remote.dto.ZonaFollajeDto
@@ -128,9 +129,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                             latitud = existingByName?.latitud ?: latitud,
                             longitud = existingByName?.longitud ?: longitud,
                             descripcion = targetAssociation.descripcion
-                                ?: observaciones
-                                ?: existingByName?.descripcion
-                                ?: "Registrado en captura de corteza offline",
+                                ?: existingByName?.descripcion,
                             fechaRegistroIso = existingByName?.fechaRegistroIso ?: nowIso,
                             ultimoEstadoFitosanitario = classificationResult.outcome.apiValue,
                             idCuenta = existingByName?.idCuenta ?: brigadistaId,
@@ -159,9 +158,7 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                             latitudCentro = latitud,
                             longitudCentro = longitud,
                             radioMetros = radioMetrosZona,
-                            descripcion = targetAssociation.descripcion
-                                ?: observaciones
-                                ?: "Zona aérea registrada en campo",
+                            descripcion = targetAssociation.descripcion,
                             fechaRegistroIso = nowIso,
                             idCuenta = brigadistaId,
                             idDispositivo = idDispositivo,
@@ -233,11 +230,44 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
     override suspend fun updateDetectionObservations(
         idAnalisis: String,
         observaciones: String?
-    ): Result<Unit> = runCatching {
-        forestMonitoringDao.updateAnalisisObservations(
-            idAnalisis = idAnalisis,
-            observaciones = observaciones?.trim()?.takeIf { it.isNotEmpty() }
-        )
+    ): Result<Unit> = withContext(ioDispatcher) {
+        runCatching {
+            val cleanObs = observaciones?.trim()?.takeIf { it.isNotEmpty() }
+            val existing = forestMonitoringDao.getAnalysisWithChromaticById(idAnalisis)?.analisis
+                ?: throw IllegalArgumentException("No se encontró el análisis $idAnalisis en la base local.")
+            val wasSynced = existing.estadoSincronizacion.equals(SyncStatus.SINCRONIZADO.name, ignoreCase = true)
+
+            // Offline-First: persistir inmediatamente en Room; si ya estaba sincronizado, marcar pendiente
+            // por si no hay red en este momento y debe re-sincronizarse luego.
+            val nextStatus = if (wasSynced) {
+                SyncStatus.PENDIENTE.name
+            } else {
+                existing.estadoSincronizacion
+            }
+            forestMonitoringDao.updateAnalisisObservationsAndSyncStatus(
+                idAnalisis = idAnalisis,
+                observaciones = cleanObs,
+                estadoSincronizacion = nextStatus
+            )
+
+            if (wasSynced) {
+                val remoteResp = runCatching {
+                    monitoringApiService.updateAnalisisObservaciones(
+                        idAnalisis = idAnalisis,
+                        body = ActualizarAnalisisObservacionesDto(observaciones = cleanObs)
+                    )
+                }.getOrNull()
+
+                if (remoteResp != null && remoteResp.isSuccessful) {
+                    forestMonitoringDao.markAnalysesSynced(
+                        ids = listOf(idAnalisis),
+                        newStatus = SyncStatus.SINCRONIZADO.name,
+                        syncedAtIso = Instant.now().toString()
+                    )
+                }
+            }
+            Unit
+        }
     }
 
     override fun observeDailyJourneySummary(): Flow<DailyJourneySummary> {
@@ -334,7 +364,8 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                 especie = cleanSpecies,
                 latitud = latitud,
                 longitud = longitud,
-                descripcion = descripcion?.trim()
+                descripcion = descripcion?.trim(),
+                idDispositivo = DeviceIdentifierProvider.getHardwareDeviceUuid(context)
             )
 
             val remoteResponse = runCatching {
@@ -459,7 +490,8 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                             especie = tree.especie,
                             latitud = tree.latitud,
                             longitud = tree.longitud,
-                            descripcion = tree.descripcion
+                            descripcion = tree.descripcion,
+                            idDispositivo = tree.idDispositivo?.takeIf { it.isNotBlank() } ?: hardwareDeviceUuid
                         )
                         val resp = monitoringApiService.createArbol(treeDto)
                         if (resp.isSuccessful) {
@@ -477,7 +509,8 @@ class ForestMonitoringRepositoryImpl @Inject constructor(
                             longitudCentro = zona.longitudCentro,
                             nombreZona = zona.nombreZona,
                             radioMetros = zona.radioMetros,
-                            descripcion = zona.descripcion
+                            descripcion = zona.descripcion,
+                            idDispositivo = zona.idDispositivo?.takeIf { it.isNotBlank() } ?: hardwareDeviceUuid
                         )
                         val resp = monitoringApiService.createZonaFollaje(zonaDto)
                         if (resp.isSuccessful) {

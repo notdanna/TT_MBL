@@ -1,9 +1,12 @@
 package com.descortezadores.ecoverde.domain.model.auth
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Modelo de dominio inmutable que representa la sesión activa del Brigadista / Experto de campo
  * en el Bosque de Chapultepec (CU-G01, CU-M11, RN-02, RN-03, RF-27).
  */
+@Immutable
 data class BrigadistaSession(
     val brigadistaId: String,
     val correo: String,

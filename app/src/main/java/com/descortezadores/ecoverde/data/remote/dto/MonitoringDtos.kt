@@ -205,6 +205,14 @@ data class AnalisisDetalleDto(
 )
 
 /**
+ * DTO para actualizar las observaciones individuales de un análisis (`PUT /api/v1/analisis/{id}`).
+ */
+data class ActualizarAnalisisObservacionesDto(
+    @SerializedName("observaciones")
+    val observaciones: String?
+)
+
+/**
  * DTO de Foco de Infestación NOM-019 para `GET /api/v1/estadisticas/focos` (`RF-14`, `RN-25`..`RN-29`).
  */
 data class FocoInfestacionDto(

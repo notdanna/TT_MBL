@@ -1,5 +1,7 @@
 package com.descortezadores.ecoverde.domain.model
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Estados posibles de sincronización de un registro local (RN-17).
  */
@@ -39,6 +41,7 @@ enum class TreeSpecies(val officialName: String) {
  * - Una muestra de [SampleType.CORTEZA] SOLO puede asociarse a un árbol (existente o nuevo).
  * - Una muestra de [SampleType.FOLLAJE] SOLO puede asociarse a una zona de follaje (existente o nueva).
  */
+@Immutable
 sealed interface TargetAssociation {
     val sampleType: SampleType
 
@@ -96,6 +99,7 @@ sealed interface TargetAssociation {
 /**
  * Modelo de dominio de un Árbol registrado (`ARBOL` - §4.4.9 y `/api/v1/arboles`).
  */
+@Immutable
 data class TreeRecord(
     val idArbol: String,
     val nombreEspecifico: String,
@@ -112,6 +116,7 @@ data class TreeRecord(
 /**
  * Modelo de dominio de una Zona de Follaje (`ZONA_FOLLAJE` - §4.4.9 y `/api/v1/zonas-follaje`).
  */
+@Immutable
 data class FoliageZoneRecord(
     val idZona: String,
     val nombreZona: String,
@@ -128,6 +133,7 @@ data class FoliageZoneRecord(
  * Modelo de dominio de un Foco de Infestación Activo conforme a NOM-019-SEMARNAT-2017
  * (`RN-25`: 3+ árboles infectados en <= 1,000 m2; `RN-27`: alerta de proximidad <= 100m).
  */
+@Immutable
 data class InfestationFocus(
     val idFoco: String,
     val latitudCentro: Double,
@@ -141,6 +147,7 @@ data class InfestationFocus(
 /**
  * Resumen estadístico de la jornada actual (00:00 - 23:59) (`RF-12`, `RN-30`, `RN-31`).
  */
+@Immutable
 data class DailyJourneySummary(
     val totalCapturasHoy: Int,
     val totalSanosHoy: Int,

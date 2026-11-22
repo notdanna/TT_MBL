@@ -228,6 +228,8 @@ data class AnalysisResultUiState(
     val selectedTreeDetailId: String? = null,
     val selectedZoneDetailId: String? = null,
     val isInspectingHistoricalRecord: Boolean = false,
+    val inspectingAnalysisId: String? = null,
+    val previousDestinationBeforeInspect: EcoVerdeMainDestination = EcoVerdeMainDestination.INICIO,
     val homeTreeFilter: TreeHealthFilter = TreeHealthFilter.TODOS,
 
     // Bottom Sheet contextual para mapa de árboles y focos
@@ -262,7 +264,10 @@ data class AnalysisResultUiState(
     val selectedZoneId: String? = null,
     val newZoneName: String = "Zona II - Calzada de los Poetas",
     val newZoneRadiusMeters: String = "55.0",
+    // Observación independiente de la captura/foto activa
     val fieldObservations: String = "",
+    // Observación general del árbol o zona en la vista de detalle
+    val detailObservations: String = "",
     // Ubicación GPS actual del dispositivo (usada para mapa, alertas de proximidad y fallback)
     val deviceLatitude: Double = 19.42182,
     val deviceLongitude: Double = -99.18203,

@@ -22,6 +22,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -212,6 +213,7 @@ fun AnalysisResultScreen(
     onNewZoneNameChanged: (String) -> Unit,
     onNewZoneRadiusChanged: (String) -> Unit,
     onObservationsChanged: (String) -> Unit,
+    onDetailObservationsChanged: (String) -> Unit = {},
     onSaveToRoomClick: () -> Unit,
     onSyncNowClick: () -> Unit,
     onHistoryFilterChanged: (HistoryFilterOption) -> Unit,
@@ -242,7 +244,6 @@ fun AnalysisResultScreen(
 ) {
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     var showTermsScreen by remember { mutableStateOf(false) }
 
@@ -573,14 +574,11 @@ fun AnalysisResultScreen(
     }
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                scrollBehavior = scrollBehavior,
                 windowInsets = TopAppBarDefaults.windowInsets,
                 navigationIcon = {
                     if (uiState.currentDestination == EcoVerdeMainDestination.ANALIZAR) {
@@ -895,57 +893,43 @@ fun AnalysisResultScreen(
                                         label = "ProgressionDetailAnimatedContent"
                                     ) { (activeTreeProgression, activeZoneProgression) ->
                                         if (activeTreeProgression != null) {
-                                            // Módulo 3: Detalle de Árbol
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .verticalScroll(rememberScrollState())
-                                                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp)
-                                            ) {
-                                                TreeDetailProgressionSection(
-                                                    progression = activeTreeProgression,
-                                                    onBackToTreesClick = onCloseTreeDetailClick,
-                                                    onNewCaptureForTreeClick = {
-                                                        onStartNewCaptureForTreeClick(activeTreeProgression.tree.idArbol)
-                                                        onStartWizard(SampleType.CORTEZA, activeTreeProgression.tree.idArbol)
-                                                        triggerCameraWithMetadata()
-                                                    },
-                                                    onCenterMapOnTreeClick = { _, _ ->
-                                                        onFocusTreeOnMap(activeTreeProgression.tree)
-                                                    },
-                                                    onSaveTreeObservationsClick = onSaveTreeObservationsClick,
-                                                    fieldObservations = uiState.fieldObservations,
-                                                    onObservationsChanged = onObservationsChanged,
-                                                    onInspectCaptureClick = onInspectRecordClick,
-                                                    onDeleteTreeClick = onDeleteTreeClick
-                                                )
-                                            }
+                                            // Módulo 3: Detalle de Árbol (LazyColumn virtualizada a 120Hz)
+                                            TreeDetailProgressionSection(
+                                                progression = activeTreeProgression,
+                                                onBackToTreesClick = onCloseTreeDetailClick,
+                                                onNewCaptureForTreeClick = {
+                                                    onStartNewCaptureForTreeClick(activeTreeProgression.tree.idArbol)
+                                                    onStartWizard(SampleType.CORTEZA, activeTreeProgression.tree.idArbol)
+                                                    triggerCameraWithMetadata()
+                                                },
+                                                onCenterMapOnTreeClick = { _, _ ->
+                                                    onFocusTreeOnMap(activeTreeProgression.tree)
+                                                },
+                                                onSaveTreeObservationsClick = onSaveTreeObservationsClick,
+                                                fieldObservations = uiState.detailObservations,
+                                                onObservationsChanged = onDetailObservationsChanged,
+                                                onInspectCaptureClick = onInspectRecordClick,
+                                                onDeleteTreeClick = onDeleteTreeClick
+                                            )
                                         } else if (activeZoneProgression != null) {
-                                            // Detalle de Zona de Follaje (Dosel)
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .verticalScroll(rememberScrollState())
-                                                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp)
-                                            ) {
-                                                ZoneDetailProgressionSection(
-                                                    progression = activeZoneProgression,
-                                                    onBackToZonesClick = onCloseZoneDetailClick,
-                                                    onNewCaptureForZoneClick = {
-                                                        onStartNewCaptureForZoneClick(activeZoneProgression.zone.idZona)
-                                                        onStartWizard(SampleType.FOLLAJE, null)
-                                                        triggerCameraWithMetadata()
-                                                    },
-                                                    onCenterMapOnZoneClick = { lat, lon ->
-                                                        onFocusCoordinatesOnMap(lat, lon)
-                                                    },
-                                                    onSaveZoneObservationsClick = onSaveZoneObservationsClick,
-                                                    fieldObservations = uiState.fieldObservations,
-                                                    onObservationsChanged = onObservationsChanged,
-                                                    onInspectCaptureClick = onInspectRecordClick,
-                                                    onDeleteZoneClick = onDeleteZoneClick
-                                                )
-                                            }
+                                            // Detalle de Zona de Follaje (Dosel) (LazyColumn virtualizada a 120Hz)
+                                            ZoneDetailProgressionSection(
+                                                progression = activeZoneProgression,
+                                                onBackToZonesClick = onCloseZoneDetailClick,
+                                                onNewCaptureForZoneClick = {
+                                                    onStartNewCaptureForZoneClick(activeZoneProgression.zone.idZona)
+                                                    onStartWizard(SampleType.FOLLAJE, null)
+                                                    triggerCameraWithMetadata()
+                                                },
+                                                onCenterMapOnZoneClick = { lat, lon ->
+                                                    onFocusCoordinatesOnMap(lat, lon)
+                                                },
+                                                onSaveZoneObservationsClick = onSaveZoneObservationsClick,
+                                                fieldObservations = uiState.detailObservations,
+                                                onObservationsChanged = onDetailObservationsChanged,
+                                                onInspectCaptureClick = onInspectRecordClick,
+                                                onDeleteZoneClick = onDeleteZoneClick
+                                            )
                                         } else {
                                             saveableStateHolder.SaveableStateProvider(key = "INICIO_DASHBOARD") {
                                                 // Módulo 2: Hub Principal / Dashboard de la Jornada (LazyColumn virtualizada a 120Hz)
@@ -1029,22 +1013,15 @@ fun AnalysisResultScreen(
                                 }
 
                                 EcoVerdeMainDestination.PERFIL -> {
-                                    // Módulo 8: Perfil y Ajustes Técnicos
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .verticalScroll(rememberScrollState())
-                                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp)
-                                    ) {
-                                        BrigadistaProfileSection(
-                                            session = session,
-                                            uiState = uiState,
-                                            onSyncNowClick = onSyncNowClick,
-                                            onClearLocalDatabaseClick = onClearLocalDatabaseClick,
-                                            onLogoutClick = onLogoutClick,
-                                            onOpenTermsClick = { showTermsScreen = true }
-                                        )
-                                    }
+                                    // Módulo 8: Perfil y Ajustes Técnicos (LazyColumn virtualizada a 120Hz)
+                                    BrigadistaProfileSection(
+                                        session = session,
+                                        uiState = uiState,
+                                        onSyncNowClick = onSyncNowClick,
+                                        onClearLocalDatabaseClick = onClearLocalDatabaseClick,
+                                        onLogoutClick = onLogoutClick,
+                                        onOpenTermsClick = { showTermsScreen = true }
+                                    )
                                 }
                             }
                         }
@@ -1384,20 +1361,18 @@ private fun TreeProgressionRowCard(
         SyncStatus.ERROR -> Icons.Default.Error to StatusInfestedRed
     }
 
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    val cardShape = MaterialTheme.shapes.large
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
+            .clip(cardShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, cardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
             .clickable(onClick = onClick)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1405,7 +1380,8 @@ private fun TreeProgressionRowCard(
                 Text(
                     text = progression.tree.nombreEspecifico,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = progression.lastCaptureFormattedTime,
@@ -1419,42 +1395,39 @@ private fun TreeProgressionRowCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Chip 1: Estado fitosanitario
-                    Surface(
-                        shape = CircleShape,
-                        color = statusBg
+                    Box(
+                        modifier = Modifier
+                            .background(statusBg, CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = progression.statusBadgeLabel,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = statusFg,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            color = statusFg
                         )
                     }
 
                     // Chip 2: Estado de persistencia
-                    Surface(
-                        shape = CircleShape,
-                        color = syncColor.copy(alpha = 0.12f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(syncColor.copy(alpha = 0.12f), CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Icon(
-                                imageVector = syncIcon,
-                                contentDescription = null,
-                                tint = syncColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = progression.syncStatus.displayLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = syncColor
-                            )
-                        }
+                        Icon(
+                            imageVector = syncIcon,
+                            contentDescription = null,
+                            tint = syncColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = progression.syncStatus.displayLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = syncColor
+                        )
                     }
                 }
             }
@@ -1464,7 +1437,6 @@ private fun TreeProgressionRowCard(
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.outline
             )
-        }
     }
 }
 
@@ -1527,243 +1499,257 @@ private fun TreeDetailProgressionSection(
     val treeLat = progression.tree.latitud ?: 19.4218
     val treeLon = progression.tree.longitud ?: -99.1820
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         // Barra superior
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        item(key = "tree_detail_topbar") {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                OutlinedButton(
-                    onClick = onBackToTreesClick,
-                    shape = CircleShape
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("← Lista de trabajo")
+                    OutlinedButton(
+                        onClick = onBackToTreesClick,
+                        shape = CircleShape
+                    ) {
+                        Text("← Lista de trabajo")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = progression.tree.nombreEspecifico,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Detalle del ejemplar",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = progression.tree.nombreEspecifico,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Detalle del ejemplar",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                IconButton(
+                    onClick = { showDeleteConfirmDialog = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar árbol",
+                        tint = StatusInfestedRed
                     )
                 }
-            }
-            IconButton(
-                onClick = { showDeleteConfirmDialog = true }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Eliminar árbol",
-                    tint = StatusInfestedRed
-                )
             }
         }
 
         // 1. TARJETA DE ESTADO ACTUAL GRANDE (Módulo 3)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = containerBg),
-            border = BorderStroke(1.5.dp, statusColor.copy(alpha = 0.4f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item(key = "tree_detail_status") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = containerBg),
+                border = BorderStroke(1.5.dp, statusColor.copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "ESTADO ACTUAL",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = statusColor
-                        )
-                        Text(
-                            text = progression.statusBadgeLabel.uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Black,
-                            color = statusColor
-                        )
-                        Text(
-                            text = "Última captura: ${progression.lastCaptureFormattedTime}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = statusColor.copy(alpha = 0.9f)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(statusColor),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = when (progression.currentStatus) {
-                                ClassificationOutcome.SANO -> "✓"
-                                ClassificationOutcome.INFESTADO -> "!"
-                                else -> "?"
-                            },
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                    }
-                }
+                        Column {
+                            Text(
+                                text = "ESTADO ACTUAL",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = statusColor
+                            )
+                            Text(
+                                text = progression.statusBadgeLabel.uppercase(),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Black,
+                                color = statusColor
+                            )
+                            Text(
+                                text = "Última captura: ${progression.lastCaptureFormattedTime}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = statusColor.copy(alpha = 0.9f)
+                            )
+                        }
 
-                // Botón directo: Nueva captura en este árbol
-                Button(
-                    onClick = onNewCaptureForTreeClick,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Nueva captura en este árbol", fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(statusColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = when (progression.currentStatus) {
+                                    ClassificationOutcome.SANO -> "✓"
+                                    ClassificationOutcome.INFESTADO -> "!"
+                                    else -> "?"
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Botón directo: Nueva captura en este árbol
+                    Button(
+                        onClick = onNewCaptureForTreeClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Nueva captura en este árbol", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
         // 2. FICHA TÉCNICA (Módulo 3)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item(key = "tree_detail_tech_sheet") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Ficha Técnica del Árbol",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "Coordenadas GPS",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = String.format("%.5f, %.5f", treeLat, treeLon),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { onCenterMapOnTreeClick(treeLat, treeLon) },
-                        shape = CircleShape
+                    Text(
+                        text = "Ficha Técnica del Árbol",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ver en mapa", style = MaterialTheme.typography.labelSmall)
+                        Column {
+                            Text(
+                                text = "Coordenadas GPS",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = String.format("%.5f, %.5f", treeLat, treeLon),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { onCenterMapOnTreeClick(treeLat, treeLon) },
+                            shape = CircleShape
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Ver en mapa", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
-                }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // Campo editable de Observaciones de campo
-                Text(
-                    text = "Observaciones de campo",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold
-                )
+                    // Campo editable de Observaciones de campo
+                    Text(
+                        text = "Observaciones de campo",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                OutlinedTextField(
-                    value = fieldObservations,
-                    onValueChange = onObservationsChanged,
-                    placeholder = { Text("Añadir observaciones sobre el tronco, resina o follaje...") },
-                    shape = MaterialTheme.shapes.medium,
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    OutlinedTextField(
+                        value = fieldObservations,
+                        onValueChange = onObservationsChanged,
+                        placeholder = { Text("Añadir observaciones sobre el tronco, resina o follaje...") },
+                        shape = MaterialTheme.shapes.medium,
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                Button(
-                    onClick = { onSaveTreeObservationsClick(progression.tree.idArbol, fieldObservations) },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar observaciones", style = MaterialTheme.typography.labelSmall)
+                    Button(
+                        onClick = { onSaveTreeObservationsClick(progression.tree.idArbol, fieldObservations) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Guardar observaciones", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
 
         // 3. HISTORIAL DE LA JORNADA PARA ESTE EJEMPLAR (Módulo 3)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        item(key = "tree_detail_history") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Historial de la jornada para este ejemplar (${progression.captures.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (progression.captures.isEmpty()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
-                        text = "Aún no se han tomado fotografías hoy a este árbol.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Historial de la jornada para este ejemplar (${progression.captures.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
-                } else {
-                    progression.captures.forEach { rec ->
-                        TreeCaptureHistoryCardRow(
-                            record = rec,
-                            onClick = { onInspectCaptureClick(rec) }
+
+                    if (progression.captures.isEmpty()) {
+                        Text(
+                            text = "Aún no se han tomado fotografías hoy a este árbol.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    } else {
+                        progression.captures.forEach { rec ->
+                            TreeCaptureHistoryCardRow(
+                                record = rec,
+                                onClick = { onInspectCaptureClick(rec) }
+                            )
+                        }
                     }
                 }
             }
         }
 
         // 4. ELIMINAR CATEGORÍA / ÁRBOL
-        OutlinedButton(
-            onClick = { showDeleteConfirmDialog = true },
-            shape = CircleShape,
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = StatusInfestedRed
-            ),
-            border = BorderStroke(1.dp, StatusInfestedRed.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Eliminar esta categoría / árbol y sus registros", fontWeight = FontWeight.SemiBold)
+        item(key = "tree_detail_delete") {
+            OutlinedButton(
+                onClick = { showDeleteConfirmDialog = true },
+                shape = CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = StatusInfestedRed
+                ),
+                border = BorderStroke(1.dp, StatusInfestedRed.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Eliminar esta categoría / árbol y sus registros", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -1801,66 +1787,92 @@ private fun TreeCaptureHistoryCardRow(
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        val obsPreview = record.observaciones?.trim()?.takeIf { it.isNotEmpty() }
+
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Miniatura visual
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(statusColor.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    // Miniatura visual
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(statusColor.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = statusColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "Hora: ${record.fechaCapturaIso.substringAfter("T", "").take(5)} hrs • ${record.classificationOutcome.displayTitle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${(record.confidence * 100).toInt()}% de confianza",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Column {
-                    Text(
-                        text = "Hora: ${record.fechaCapturaIso.substringAfter("T", "").take(5)} hrs • ${record.classificationOutcome.displayTitle}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${(record.confidence * 100).toInt()}% de confianza",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = CircleShape,
+                    color = syncColor.copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = syncIcon,
+                            contentDescription = null,
+                            tint = syncColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = record.syncStatus.displayLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = syncColor
+                        )
+                    }
                 }
             }
 
-            Surface(
-                shape = CircleShape,
-                color = syncColor.copy(alpha = 0.12f)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            if (obsPreview != null) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = syncIcon,
-                        contentDescription = null,
-                        tint = syncColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = record.syncStatus.displayLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = syncColor
+                        text = obsPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     )
                 }
             }
@@ -1893,20 +1905,18 @@ private fun ZoneProgressionRowCard(
         SyncStatus.ERROR -> Icons.Default.Error to StatusInfestedRed
     }
 
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    val cardShape = MaterialTheme.shapes.large
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
+            .clip(cardShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, cardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
             .clickable(onClick = onClick)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1914,7 +1924,8 @@ private fun ZoneProgressionRowCard(
                 Text(
                     text = progression.zone.nombreZona,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 val tomasLabel = if (progression.totalCapturas == 1) "1 toma" else "${progression.totalCapturas} tomas"
                 Text(
@@ -1935,44 +1946,40 @@ private fun ZoneProgressionRowCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = statusBg
+                Box(
+                    modifier = Modifier
+                        .background(statusBg, CircleShape)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = progression.statusBadgeLabel,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = statusFg,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        color = statusFg
                     )
                 }
 
-                Surface(
-                    shape = CircleShape,
-                    color = syncColor.copy(alpha = 0.12f)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(syncColor.copy(alpha = 0.12f), CircleShape)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Icon(
-                            imageVector = syncIcon,
-                            contentDescription = null,
-                            tint = syncColor,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = progression.syncStatus.displayLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = syncColor
-                        )
-                    }
+                    Icon(
+                        imageVector = syncIcon,
+                        contentDescription = null,
+                        tint = syncColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = progression.syncStatus.displayLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = syncColor
+                    )
                 }
             }
-        }
     }
 }
 
@@ -2035,273 +2042,287 @@ private fun ZoneDetailProgressionSection(
     val zoneLat = progression.zone.latitudCentro
     val zoneLon = progression.zone.longitudCentro
 
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         // Barra superior
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        item(key = "zone_detail_topbar") {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                OutlinedButton(
-                    onClick = onBackToZonesClick,
-                    shape = CircleShape
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("← Lista de trabajo")
+                    OutlinedButton(
+                        onClick = onBackToZonesClick,
+                        shape = CircleShape
+                    ) {
+                        Text("← Lista de trabajo")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = progression.zone.nombreZona,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Zona de monitoreo de dosel (Follaje)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = progression.zone.nombreZona,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Zona de monitoreo de dosel (Follaje)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                IconButton(
+                    onClick = { showDeleteConfirmDialog = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar zona",
+                        tint = StatusInfestedRed
                     )
                 }
-            }
-            IconButton(
-                onClick = { showDeleteConfirmDialog = true }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Eliminar zona",
-                    tint = StatusInfestedRed
-                )
             }
         }
 
         // 1. TARJETA DE ESTADO ACTUAL DE LA ZONA
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = containerBg),
-            border = BorderStroke(1.5.dp, statusColor.copy(alpha = 0.4f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item(key = "zone_detail_status") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = containerBg),
+                border = BorderStroke(1.5.dp, statusColor.copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "ESTADO DEL DOSEL",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = statusColor
-                        )
-                        Text(
-                            text = progression.statusBadgeLabel.uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Black,
-                            color = statusColor
-                        )
-                        Text(
-                            text = "Última toma: ${progression.lastCaptureFormattedTime}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = statusColor.copy(alpha = 0.9f)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(statusColor),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Yard,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-                }
+                        Column {
+                            Text(
+                                text = "ESTADO DEL DOSEL",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = statusColor
+                            )
+                            Text(
+                                text = progression.statusBadgeLabel.uppercase(),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Black,
+                                color = statusColor
+                            )
+                            Text(
+                                text = "Última toma: ${progression.lastCaptureFormattedTime}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = statusColor.copy(alpha = 0.9f)
+                            )
+                        }
 
-                // Distribución cromática promedio
-                if (progression.totalCapturas > 0) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "Promedio de coloración foliar en la zona:",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(statusColor),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = ChromaticFoliageHealthy.copy(alpha = 0.2f),
-                                modifier = Modifier.weight(1f)
+                            Icon(
+                                imageVector = Icons.Default.Yard,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+
+                    // Distribución cromática promedio
+                    if (progression.totalCapturas > 0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Promedio de coloración foliar en la zona:",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text("Sano", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageHealthy, fontWeight = FontWeight.Bold)
-                                    Text("${progression.avgPctSano}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageHealthy)
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = ChromaticFoliageHealthy.copy(alpha = 0.2f),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("Sano", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageHealthy, fontWeight = FontWeight.Bold)
+                                        Text("${progression.avgPctSano}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageHealthy)
+                                    }
                                 }
-                            }
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = ChromaticFoliageRegular.copy(alpha = 0.25f),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text("Estrés", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
-                                    Text("${progression.avgPctRegular}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = ChromaticFoliageRegular.copy(alpha = 0.25f),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("Estrés", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                        Text("${progression.avgPctRegular}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                    }
                                 }
-                            }
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = ChromaticFoliageDamaged.copy(alpha = 0.2f),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text("Dañado", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageDamaged, fontWeight = FontWeight.Bold)
-                                    Text("${progression.avgPctDanado}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageDamaged)
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = ChromaticFoliageDamaged.copy(alpha = 0.2f),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("Dañado", style = MaterialTheme.typography.labelSmall, color = ChromaticFoliageDamaged, fontWeight = FontWeight.Bold)
+                                        Text("${progression.avgPctDanado}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ChromaticFoliageDamaged)
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Botón directo: Nueva toma de follaje en esta zona
-                Button(
-                    onClick = onNewCaptureForZoneClick,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Nueva toma aérea / follaje en esta zona", fontWeight = FontWeight.Bold)
+                    // Botón directo: Nueva toma de follaje en esta zona
+                    Button(
+                        onClick = onNewCaptureForZoneClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Nueva toma aérea / follaje en esta zona", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
         // 2. FICHA TÉCNICA DE LA ZONA
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        item(key = "zone_detail_tech_sheet") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Ficha Técnica de la Zona",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                ProfileFieldRow("Nombre", progression.zone.nombreZona)
-                ProfileFieldRow("Coordenadas centrales", String.format("%.5f, %.5f", zoneLat, zoneLon))
-                ProfileFieldRow("Fecha de alta", progression.zone.fechaRegistroIso.take(10))
-
-                Button(
-                    onClick = { onCenterMapOnZoneClick(zoneLat, zoneLon) },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ver ubicación en mapa")
-                }
+                    Text(
+                        text = "Ficha Técnica de la Zona",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    ProfileFieldRow("Nombre", progression.zone.nombreZona)
+                    ProfileFieldRow("Coordenadas centrales", String.format("%.5f, %.5f", zoneLat, zoneLon))
+                    ProfileFieldRow("Fecha de alta", progression.zone.fechaRegistroIso.take(10))
 
-                Text(
-                    text = "Notas y Observaciones de la Zona:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                    Button(
+                        onClick = { onCenterMapOnZoneClick(zoneLat, zoneLon) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ver ubicación en mapa")
+                    }
 
-                OutlinedTextField(
-                    value = fieldObservations,
-                    onValueChange = onObservationsChanged,
-                    placeholder = { Text("Añadir observaciones sobre el dosel, condiciones de vuelo...") },
-                    shape = MaterialTheme.shapes.medium,
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                Button(
-                    onClick = { onSaveZoneObservationsClick(progression.zone.idZona, fieldObservations) },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar observaciones", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = "Notas y Observaciones de la Zona:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    OutlinedTextField(
+                        value = fieldObservations,
+                        onValueChange = onObservationsChanged,
+                        placeholder = { Text("Añadir observaciones sobre el dosel, condiciones de vuelo...") },
+                        shape = MaterialTheme.shapes.medium,
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Button(
+                        onClick = { onSaveZoneObservationsClick(progression.zone.idZona, fieldObservations) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Guardar observaciones", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
 
         // 3. HISTORIAL DE TOMAS AÉREAS / FOLLAJE PARA ESTA ZONA
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        item(key = "zone_detail_history") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Historial de tomas para esta zona (${progression.captures.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (progression.captures.isEmpty()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
-                        text = "Aún no se han registrado tomas de follaje para esta zona.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Historial de tomas para esta zona (${progression.captures.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
-                } else {
-                    progression.captures.forEach { rec ->
-                        ZoneCaptureHistoryCardRow(
-                            record = rec,
-                            onClick = { onInspectCaptureClick(rec) }
+
+                    if (progression.captures.isEmpty()) {
+                        Text(
+                            text = "Aún no se han registrado tomas de follaje para esta zona.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    } else {
+                        progression.captures.forEach { rec ->
+                            ZoneCaptureHistoryCardRow(
+                                record = rec,
+                                onClick = { onInspectCaptureClick(rec) }
+                            )
+                        }
                     }
                 }
             }
         }
 
         // 4. ELIMINAR ZONA
-        OutlinedButton(
-            onClick = { showDeleteConfirmDialog = true },
-            shape = CircleShape,
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = StatusInfestedRed
-            ),
-            border = BorderStroke(1.dp, StatusInfestedRed.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Eliminar esta zona de follaje y sus registros", fontWeight = FontWeight.SemiBold)
+        item(key = "zone_detail_delete") {
+            OutlinedButton(
+                onClick = { showDeleteConfirmDialog = true },
+                shape = CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = StatusInfestedRed
+                ),
+                border = BorderStroke(1.dp, StatusInfestedRed.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Eliminar esta zona de follaje y sus registros", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -2337,57 +2358,83 @@ private fun ZoneCaptureHistoryCardRow(
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        val obsPreview = record.observaciones?.trim()?.takeIf { it.isNotEmpty() }
+
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(statusColor.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Yard,
-                        contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(statusColor.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Yard,
+                            contentDescription = null,
+                            tint = statusColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "Toma aérea • ${record.fechaCapturaIso.take(16).replace('T', ' ')}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Verde: $pctSano% • Estrés: $pctRegular% • Necrosis: $pctDanado%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Toma aérea • ${record.fechaCapturaIso.take(16).replace('T', ' ')}",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Verde: $pctSano% • Estrés: $pctRegular% • Necrosis: $pctDanado%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = CircleShape,
+                    color = syncColor.copy(alpha = 0.12f)
+                ) {
+                    Icon(
+                        imageVector = syncIcon,
+                        contentDescription = null,
+                        tint = syncColor,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(16.dp)
                     )
                 }
             }
 
-            Surface(
-                shape = CircleShape,
-                color = syncColor.copy(alpha = 0.12f)
-            ) {
-                Icon(
-                    imageVector = syncIcon,
-                    contentDescription = null,
-                    tint = syncColor,
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .size(16.dp)
-                )
+            if (obsPreview != null) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = obsPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    )
+                }
             }
         }
     }
@@ -2802,33 +2849,35 @@ private fun BrigadistaProfileSection(
             .ifBlank { "EC" }
     }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. Tarjeta de Identidad del Técnico
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item(key = "profile_identity") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = GreenPrimary,
-                        modifier = Modifier.size(56.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(GreenPrimary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
                                 text = initials,
                                 style = MaterialTheme.typography.titleLarge,
@@ -2836,75 +2885,75 @@ private fun BrigadistaProfileSection(
                                 color = Color.White
                             )
                         }
-                    }
 
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = session.nombreCompleto,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = GreenPrimary.copy(alpha = 0.12f)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = session.rol.ifBlank { "Experto de campo" },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = GreenPrimary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Email,
-                                contentDescription = null,
-                                tint = GreenPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = session.correo,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
+                                text = session.nombreCompleto,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            Box(
+                                modifier = Modifier
+                                    .background(GreenPrimary.copy(alpha = 0.12f), CircleShape)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = session.rol.ifBlank { "Experto de campo" },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GreenPrimary
+                                )
+                            }
                         }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    }
+
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PhoneAndroid,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "$deviceName • ID ${session.idDispositivo.take(12)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Email,
+                                    contentDescription = null,
+                                    tint = GreenPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = session.correo,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "$deviceName • ID ${session.idDispositivo.take(12)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -2912,173 +2961,179 @@ private fun BrigadistaProfileSection(
         }
 
         // 2. Resumen Operativo y Sincronización
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        item(key = "profile_summary") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Resumen Operativo",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    ProfileStatTile(
-                        icon = Icons.Default.CameraAlt,
-                        label = "Capturas",
-                        value = "${uiState.allRecords.size}",
-                        accentColor = GreenPrimary,
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = "Resumen Operativo",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    ProfileStatTile(
-                        icon = Icons.Default.Forest,
-                        label = "Árboles",
-                        value = "${uiState.treeProgressionList.size}",
-                        accentColor = GreenPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    val pendingCount = uiState.daySummary.pendientesSincronizacion
-                    ProfileStatTile(
-                        icon = if (pendingCount > 0) Icons.Default.CloudUpload else Icons.Default.CloudDone,
-                        label = "Pendientes",
-                        value = "$pendingCount",
-                        accentColor = if (pendingCount > 0) Color(0xFFEF6C00) else GreenPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
 
-                Button(
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSyncNowClick()
-                    },
-                    enabled = !uiState.isSyncingBackend,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (uiState.isSyncingBackend) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ProfileStatTile(
+                            icon = Icons.Default.CameraAlt,
+                            label = "Capturas",
+                            value = "${uiState.allRecords.size}",
+                            accentColor = GreenPrimary,
+                            modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sincronizando...", fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sincronización manual", fontWeight = FontWeight.Bold)
+                        ProfileStatTile(
+                            icon = Icons.Default.Forest,
+                            label = "Árboles",
+                            value = "${uiState.treeProgressionList.size}",
+                            accentColor = GreenPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        val pendingCount = uiState.daySummary.pendientesSincronizacion
+                        ProfileStatTile(
+                            icon = if (pendingCount > 0) Icons.Default.CloudUpload else Icons.Default.CloudDone,
+                            label = "Pendientes",
+                            value = "$pendingCount",
+                            accentColor = if (pendingCount > 0) Color(0xFFEF6C00) else GreenPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSyncNowClick()
+                        },
+                        enabled = !uiState.isSyncingBackend,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isSyncingBackend) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sincronizando...", fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sincronización manual", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         }
 
         // 3. Estado Técnico y Normativa
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        item(key = "profile_tech") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Sistema y Normativa",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                ProfileInfoTile(
-                    icon = Icons.Default.CheckCircle,
-                    title = "Motor de diagnóstico",
-                    subtitle = "IA híbrida (Nube + TFLite local) calibrada y activa"
-                )
-                ProfileInfoTile(
-                    icon = Icons.Default.LocationOn,
-                    title = "Geolocalización NOM-019",
-                    subtitle = "Radio de control fitosanitario de 100 m"
-                )
-                ProfileInfoTile(
-                    icon = Icons.Default.Lock,
-                    title = "Privacidad de imágenes",
-                    subtitle = "Uso exclusivo para diagnóstico fitosanitario"
-                )
-                ProfileInfoTile(
-                    icon = Icons.Default.Info,
-                    title = "Versión del sistema",
-                    subtitle = "EcoVerde 1.0.0 (Build 2026-B161)"
-                )
-
-                OutlinedButton(
-                    onClick = onOpenTermsClick,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GreenPrimary),
-                    border = BorderStroke(1.dp, GreenPrimary),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Términos, Privacidad y Acerca de", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Sistema y Normativa",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    ProfileInfoTile(
+                        icon = Icons.Default.CheckCircle,
+                        title = "Motor de diagnóstico",
+                        subtitle = "IA híbrida (Nube + TFLite local) calibrada y activa"
+                    )
+                    ProfileInfoTile(
+                        icon = Icons.Default.LocationOn,
+                        title = "Geolocalización NOM-019",
+                        subtitle = "Radio de control fitosanitario de 100 m"
+                    )
+                    ProfileInfoTile(
+                        icon = Icons.Default.Lock,
+                        title = "Privacidad de imágenes",
+                        subtitle = "Uso exclusivo para diagnóstico fitosanitario"
+                    )
+                    ProfileInfoTile(
+                        icon = Icons.Default.Info,
+                        title = "Versión del sistema",
+                        subtitle = "EcoVerde 1.0.0 (Build 2026-B161)"
+                    )
+
+                    OutlinedButton(
+                        onClick = onOpenTermsClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = GreenPrimary),
+                        border = BorderStroke(1.dp, GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Términos, Privacidad y Acerca de", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
 
         // 4. Cuenta y Mantenimiento Local
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+        item(key = "profile_account") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Text(
-                    text = "Cuenta y Datos Locales",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                OutlinedButton(
-                    onClick = { showClearDbBottomSheet = true },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusInfestedRed),
-                    border = BorderStroke(1.dp, StatusInfestedRed),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Borrar datos locales", fontWeight = FontWeight.SemiBold)
-                }
+                    Text(
+                        text = "Cuenta y Datos Locales",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
-                Button(
-                    onClick = onLogoutClick,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusInfestedRed),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cerrar sesión", fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        onClick = { showClearDbBottomSheet = true },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusInfestedRed),
+                        border = BorderStroke(1.dp, StatusInfestedRed),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Borrar datos locales", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Button(
+                        onClick = onLogoutClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = StatusInfestedRed),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cerrar sesión", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

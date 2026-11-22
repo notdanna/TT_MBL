@@ -450,6 +450,67 @@ private fun BarkResultSection(
             }
         }
 
+        // OBSERVACIONES INDEPENDIENTES DE ESTA CAPTURA
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Observaciones de esta captura",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Nota independiente para esta fotografía (separada de la observación general del árbol).",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedTextField(
+                    value = uiState.fieldObservations,
+                    onValueChange = onObservationsChanged,
+                    placeholder = { Text("Ej. Grumos de resina en cara norte, galerías visibles...") },
+                    shape = MaterialTheme.shapes.medium,
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (uiState.isInspectingHistoricalRecord) {
+                    Button(
+                        onClick = onSaveAndFinishClick,
+                        enabled = !uiState.isSavingOffline,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isSavingOffline) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardando observaciones...")
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardar observaciones", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // BARRA DE ACCIONES PERSISTENTE (Inferior)
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -472,7 +533,7 @@ private fun BarkResultSection(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("← Volver a lista", fontWeight = FontWeight.Bold)
+                        Text("Volver a lista", fontWeight = FontWeight.Bold)
                     }
                 } else {
                     Button(
@@ -905,6 +966,7 @@ private fun FoliageResultSection(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -974,7 +1036,7 @@ private fun FoliageResultSection(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("← Volver a lista", fontWeight = FontWeight.Bold)
+                        Text("Volver a lista", fontWeight = FontWeight.Bold)
                     }
                 } else {
                     Button(

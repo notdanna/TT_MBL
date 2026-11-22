@@ -128,9 +128,7 @@ fun CaptureWizardSection(
     onCancelWizardClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = EcoVerdeMotion.standardSpatialSpring()),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Cabecera con Stepper de 4 Pasos

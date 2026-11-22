@@ -165,8 +165,10 @@ fun OfflineForestMapLibreView(
     )
     LaunchedEffect(animatedFocusedScale, styleReady, isVisible) {
         if (!styleReady || !isVisible) return@LaunchedEffect
-        mapInstance?.style?.getLayerAs<SymbolLayer>(LAYER_FOCUSED_TREE_ICON)
-            ?.setProperties(PropertyFactory.iconSize(animatedFocusedScale))
+        withContext(Dispatchers.Main.immediate) {
+            mapInstance?.style?.getLayerAs<SymbolLayer>(LAYER_FOCUSED_TREE_ICON)
+                ?.setProperties(PropertyFactory.iconSize(animatedFocusedScale))
+        }
     }
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -227,35 +229,39 @@ fun OfflineForestMapLibreView(
         }
     }
 
-    // Actualizar solo el marcador del usuario ante ticks frecuentes del GPS (en Dispatchers.Default)
-    LaunchedEffect(styleReady, currentLat, currentLon, showUserLocation) {
+    // Actualizar solo el marcador del usuario ante ticks frecuentes del GPS (solo cuando el mapa está visible)
+    LaunchedEffect(styleReady, isVisible, currentLat, currentLon, showUserLocation) {
+        if (!styleReady || !isVisible) return@LaunchedEffect
         val map = mapInstance ?: return@LaunchedEffect
         val style = map.style ?: return@LaunchedEffect
-        if (!styleReady) return@LaunchedEffect
 
         val userGeoJson = withContext(Dispatchers.Default) {
             buildUserLocationGeoJson(currentLat, currentLon, showUserLocation)
         }
-        style.getSourceAs<GeoJsonSource>(SOURCE_USER)?.setGeoJson(userGeoJson)
+        withContext(Dispatchers.Main.immediate) {
+            style.getSourceAs<GeoJsonSource>(SOURCE_USER)?.setGeoJson(userGeoJson)
+        }
     }
 
-    // Actualizar focos NOM-019 solo cuando cambia la lista de focos
-    LaunchedEffect(styleReady, hotspots) {
+    // Actualizar focos NOM-019 solo cuando cambia la lista de focos y el mapa está visible
+    LaunchedEffect(styleReady, isVisible, hotspots) {
+        if (!styleReady || !isVisible) return@LaunchedEffect
         val map = mapInstance ?: return@LaunchedEffect
         val style = map.style ?: return@LaunchedEffect
-        if (!styleReady) return@LaunchedEffect
 
         val hotspotsGeoJson = withContext(Dispatchers.Default) {
             buildHotspotsGeoJson(hotspots)
         }
-        style.getSourceAs<GeoJsonSource>(SOURCE_HOTSPOTS)?.setGeoJson(hotspotsGeoJson)
+        withContext(Dispatchers.Main.immediate) {
+            style.getSourceAs<GeoJsonSource>(SOURCE_HOTSPOTS)?.setGeoJson(hotspotsGeoJson)
+        }
     }
 
     // Actualizar árboles y árbol enfocado en hilo de cómputo (Dispatchers.Default)
-    LaunchedEffect(styleReady, focusedTree, trees, records) {
+    LaunchedEffect(styleReady, isVisible, focusedTree, trees, records) {
+        if (!styleReady || !isVisible) return@LaunchedEffect
         val map = mapInstance ?: return@LaunchedEffect
         val style = map.style ?: return@LaunchedEffect
-        if (!styleReady) return@LaunchedEffect
 
         val (pointsGeoJson, focusedGeoJson) = withContext(Dispatchers.Default) {
             val spreadCoords = computeSpreadMapCoordinates(trees, records)
@@ -263,21 +269,23 @@ fun OfflineForestMapLibreView(
             val foc = buildFocusedTreeGeoJson(focusedTree, spreadCoords)
             pts to foc
         }
-        style.getSourceAs<GeoJsonSource>(SOURCE_POINTS)?.setGeoJson(pointsGeoJson)
-        style.getSourceAs<GeoJsonSource>(SOURCE_FOCUSED_TREE)?.setGeoJson(focusedGeoJson)
+        withContext(Dispatchers.Main.immediate) {
+            style.getSourceAs<GeoJsonSource>(SOURCE_POINTS)?.setGeoJson(pointsGeoJson)
+            style.getSourceAs<GeoJsonSource>(SOURCE_FOCUSED_TREE)?.setGeoJson(focusedGeoJson)
 
-        if (!initialPositionCentered) {
-            val initTarget = targetCoordinates
-            map.cameraPosition = CameraPosition.Builder()
-                .target(
-                    LatLng(
-                        initTarget?.first ?: CHAPULTEPEC_LAT,
-                        initTarget?.second ?: CHAPULTEPEC_LON
+            if (!initialPositionCentered) {
+                val initTarget = targetCoordinates
+                map.cameraPosition = CameraPosition.Builder()
+                    .target(
+                        LatLng(
+                            initTarget?.first ?: CHAPULTEPEC_LAT,
+                            initTarget?.second ?: CHAPULTEPEC_LON
+                        )
                     )
-                )
-                .zoom(if (initTarget != null) 16.0 else CHAPULTEPEC_ZOOM)
-                .build()
-            initialPositionCentered = true
+                    .zoom(if (initTarget != null) 16.0 else CHAPULTEPEC_ZOOM)
+                    .build()
+                initialPositionCentered = true
+            }
         }
     }
 
@@ -287,13 +295,15 @@ fun OfflineForestMapLibreView(
         val map = mapInstance ?: return@LaunchedEffect
         if (!styleReady || !isVisible) return@LaunchedEffect
         kotlinx.coroutines.delay(50)
-        map.animateCamera(
-            CameraUpdateFactory.newLatLngZoom(
-                LatLng(target.first, target.second),
-                16.0
-            ),
-            650
-        )
+        withContext(Dispatchers.Main.immediate) {
+            map.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(
+                    LatLng(target.first, target.second),
+                    16.0
+                ),
+                650
+            )
+        }
     }
 
     // Cargar estilo offline y configurar capas con iconos vectoriales
@@ -315,13 +325,15 @@ fun OfflineForestMapLibreView(
             )
         }
 
-        map.setStyle(Style.Builder().fromJson(styleJson)) { loadedStyle ->
-            setupMapLayers(
-                context = context,
-                style = loadedStyle,
-                initialGeoJson = initialData
-            )
-            styleReady = true
+        withContext(Dispatchers.Main.immediate) {
+            map.setStyle(Style.Builder().fromJson(styleJson)) { loadedStyle ->
+                setupMapLayers(
+                    context = context,
+                    style = loadedStyle,
+                    initialGeoJson = initialData
+                )
+                styleReady = true
+            }
         }
     }
 

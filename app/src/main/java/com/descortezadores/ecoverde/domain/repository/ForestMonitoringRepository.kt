@@ -1,5 +1,6 @@
 package com.descortezadores.ecoverde.domain.repository
 
+import androidx.compose.runtime.Immutable
 import com.descortezadores.ecoverde.domain.model.ChromaticAnalysisResult
 import com.descortezadores.ecoverde.domain.model.ClassificationOutcome
 import com.descortezadores.ecoverde.domain.model.ClassificationResult
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Modelo de dominio de un registro completo de análisis fitosanitario persistido en SQLite Room (`RN-50`).
  */
+@Immutable
 data class SavedDetectionRecord(
     val idAnalisis: String,
     val brigadistaId: String,

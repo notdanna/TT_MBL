@@ -382,4 +382,70 @@ class Phase5PresentationUiStateTest {
         assertEquals(ClassificationOutcome.NO_DETERMINADO, strictOutcome)
         assertEquals(PREDEFINED_TREE_SPECIES.first(), state.newTreeSpecies)
     }
+
+    @Test
+    fun `computeTreeProgressions preserva observaciones independientes por captura y separadas del arbol`() {
+        val pino = com.descortezadores.ecoverde.domain.model.TreeRecord(
+            idArbol = "tree-pino-1",
+            nombreEspecifico = "Pino #1",
+            especie = "Pino (Pinus spp.)",
+            latitud = 19.421,
+            longitud = -99.182,
+            fechaRegistroIso = "2026-11-19T10:00:00Z",
+            descripcion = "Observación general del pino",
+            idCuenta = "brig-1",
+            idDispositivo = "dev-1",
+            ultimoEstadoSanitario = ClassificationOutcome.INFESTADO
+        )
+
+        val cap1 = SavedDetectionRecord(
+            idAnalisis = "an-1",
+            brigadistaId = "brig-1",
+            idDispositivo = "dev-1",
+            sampleType = SampleType.CORTEZA,
+            classificationOutcome = ClassificationOutcome.SANO,
+            confidence = 0.89,
+            rawTfliteProbability = 0.11,
+            latitud = 19.421,
+            longitud = -99.182,
+            fechaCapturaIso = "2026-11-19T10:05:00Z",
+            fechaCapturaMillis = 1000L,
+            observaciones = "Cara sur sin resina",
+            targetAssociation = TargetAssociation.CortezaTarget.ExistingTree(
+                idArbol = "tree-pino-1",
+                nombreEspecifico = "Pino #1",
+                especie = "Pino (Pinus spp.)"
+            ),
+            originalImagePath = "/tmp/a1.jpg",
+            overlayImagePath = "/tmp/o1.jpg",
+            syncStatus = SyncStatus.SINCRONIZADO,
+            chromaticResult = null
+        )
+
+        val cap2 = cap1.copy(
+            idAnalisis = "an-2",
+            classificationOutcome = ClassificationOutcome.INFESTADO,
+            confidence = 0.94,
+            rawTfliteProbability = 0.94,
+            fechaCapturaIso = "2026-11-19T10:20:00Z",
+            fechaCapturaMillis = 2000L,
+            observaciones = "Grumos frescos en cara norte",
+            syncStatus = SyncStatus.PENDIENTE
+        )
+
+        val state = AnalysisResultUiState(
+            availableTrees = listOf(pino),
+            allRecords = listOf(cap1, cap2),
+            fieldObservations = "Grumos frescos en cara norte",
+            detailObservations = "Observación general del pino"
+        )
+
+        val prog = state.treeProgressionList.single()
+        assertEquals("Observación general del pino", prog.tree.descripcion)
+        assertEquals(2, prog.captures.size)
+        assertEquals("Grumos frescos en cara norte", prog.captures[0].observaciones)
+        assertEquals("Cara sur sin resina", prog.captures[1].observaciones)
+        assertEquals("Grumos frescos en cara norte", state.fieldObservations)
+        assertEquals("Observación general del pino", state.detailObservations)
+    }
 }

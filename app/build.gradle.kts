@@ -17,7 +17,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.descortezadores.ecoverde.HiltTestRunner"
 
         buildConfigField("String", "DEFAULT_BASE_URL", "\"https://ju5vd8uyh6.execute-api.us-east-1.amazonaws.com/\"")
         buildConfigField("String", "TFLITE_MODEL_FILENAME", "\"light_classifier.tflite\"")
@@ -57,7 +57,7 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = true
+            useLegacyPackaging = false
         }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -107,10 +107,9 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.gson)
 
-    // Computer Vision: OpenCV Android SDK & TensorFlow Lite
+    // Computer Vision: OpenCV Android SDK & LiteRT (16 KB page-size aligned)
     implementation(libs.opencv)
-    implementation(libs.tensorflow.lite)
-    implementation(libs.tensorflow.lite.support)
+    implementation(libs.litert)
 
     // Image loading, Exif, Location & Offline MapLibre GL
     implementation(libs.coil.compose)
@@ -123,6 +122,10 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.intents)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)

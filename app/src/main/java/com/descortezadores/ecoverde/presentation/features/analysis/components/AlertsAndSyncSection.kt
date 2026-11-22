@@ -2,6 +2,7 @@ package com.descortezadores.ecoverde.presentation.features.analysis.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.descortezadores.ecoverde.domain.model.ClassificationOutcome
 import com.descortezadores.ecoverde.domain.model.SampleType
@@ -614,98 +616,125 @@ private fun HistoricalRecordRow(
         }
     }
 
-    val targetLabel = when (val assoc = record.targetAssociation) {
-        is TargetAssociation.CortezaTarget.ExistingTree -> assoc.nombreEspecifico
-        is TargetAssociation.CortezaTarget.NewTree -> assoc.nombreArbolNuevo
-        is TargetAssociation.FollajeTarget.ExistingZone -> assoc.nombreZona
-        is TargetAssociation.FollajeTarget.NewZone -> assoc.nombreZonaNuevo
+    val targetLabel = remember(record.idAnalisis, record.targetAssociation) {
+        when (val assoc = record.targetAssociation) {
+            is TargetAssociation.CortezaTarget.ExistingTree -> assoc.nombreEspecifico
+            is TargetAssociation.CortezaTarget.NewTree -> assoc.nombreArbolNuevo
+            is TargetAssociation.FollajeTarget.ExistingZone -> assoc.nombreZona
+            is TargetAssociation.FollajeTarget.NewZone -> assoc.nombreZonaNuevo
+        }
     }
+    val formattedDate = remember(record.idAnalisis, record.fechaCapturaIso) {
+        record.fechaCapturaIso.take(16).replace('T', ' ')
+    }
+    val syncColor = when (record.syncStatus) {
+        SyncStatus.SINCRONIZADO -> StatusHealthyGreen
+        SyncStatus.PENDIENTE -> Color(0xFFE65100)
+        SyncStatus.ERROR -> StatusInfestedRed
+    }
+    val sampleColor = if (record.sampleType == SampleType.CORTEZA) GreenPrimary else Color(0xFF00796B)
 
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    val cardShape = MaterialTheme.shapes.medium
+    val obsPreview = record.observaciones?.trim()?.takeIf { it.isNotEmpty() }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(cardShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, cardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
             .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (record.sampleType == SampleType.CORTEZA) GreenPrimary.copy(alpha = 0.15f) else Color(0xFF00796B).copy(alpha = 0.15f)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(sampleColor.copy(alpha = 0.15f), CircleShape)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = if (record.sampleType == SampleType.CORTEZA) "Corteza" else "Follaje",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sampleColor
+                                )
+                            }
                             Text(
-                                text = if (record.sampleType == SampleType.CORTEZA) "Corteza" else "Follaje",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = if (record.sampleType == SampleType.CORTEZA) {
+                                    "$targetLabel • ${record.classificationOutcome.displayTitle}"
+                                } else {
+                                    "$targetLabel • Análisis de dosel"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (record.sampleType == SampleType.CORTEZA) GreenPrimary else Color(0xFF00796B),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                        val subtitle = if (record.sampleType == SampleType.CORTEZA) {
+                            "Certeza: ${(record.confidence * 100).toInt()}% • Fecha: $formattedDate"
+                        } else {
+                            "Dosel: $sanoPct% sano, $stressPct% estrés, $damagedPct% daño • $formattedDate"
+                        }
                         Text(
-                            text = if (record.sampleType == SampleType.CORTEZA) {
-                                "$targetLabel • ${record.classificationOutcome.displayTitle}"
-                            } else {
-                                "$targetLabel • Análisis de dosel"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    val subtitle = if (record.sampleType == SampleType.CORTEZA) {
-                        "Certeza: ${(record.confidence * 100).toInt()}% • Fecha: ${record.fechaCapturaIso.take(16).replace('T', ' ')}"
-                    } else {
-                        "Dosel: $sanoPct% sano, $stressPct% estrés, $damagedPct% daño • ${record.fechaCapturaIso.take(16).replace('T', ' ')}"
-                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Box(
+                    modifier = Modifier
+                        .background(syncColor.copy(alpha = 0.15f), MaterialTheme.shapes.small)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
                     Text(
-                        text = subtitle,
+                        text = record.syncStatus.displayLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Bold,
+                        color = syncColor
                     )
                 }
             }
 
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = when (record.syncStatus) {
-                    SyncStatus.SINCRONIZADO -> StatusHealthyGreen.copy(alpha = 0.15f)
-                    SyncStatus.PENDIENTE -> Color(0xFFE65100).copy(alpha = 0.15f)
-                    SyncStatus.ERROR -> StatusInfestedRed.copy(alpha = 0.15f)
+            if (obsPreview != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.small)
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = obsPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            ) {
-                Text(
-                    text = record.syncStatus.displayLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = when (record.syncStatus) {
-                        SyncStatus.SINCRONIZADO -> StatusHealthyGreen
-                        SyncStatus.PENDIENTE -> Color(0xFFE65100)
-                        SyncStatus.ERROR -> StatusInfestedRed
-                    },
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
             }
-        }
     }
 }
