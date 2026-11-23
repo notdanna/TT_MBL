@@ -3,8 +3,13 @@ name: Android CI
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -32,3 +37,44 @@ jobs:
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
+
+      - name: Stage APK for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ecoverde-${GITHUB_REF_NAME}-debug.apk"
+
+      - name: Upload APK artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecoverde-apk
+          path: dist/ecoverde-*.apk
+
+  release:
+    name: Publish GitHub Release
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ecoverde-apk
+          path: dist
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK_FILE=$(ls dist/ecoverde-*.apk | head -n 1)
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${APK_FILE}" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "${APK_FILE}" \
+              --title "EcoVerde Mobile ${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi

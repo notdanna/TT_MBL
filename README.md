@@ -1,6 +1,6 @@
 # EcoVerde Mobile — Sistema Móvil de Monitoreo Fitosanitario
 
-[![Android CI](https://github.com/notdanna/TT_MBL/actions/workflows/android-ci.yml/badge.svg)](https://github.com/notdanna/TT_MBL/actions/workflows/android-ci.yml)
+[![Android CI](https://github.com/sheets-tt/mbl-sheet/actions/workflows/android-ci.yml/badge.svg)](https://github.com/sheets-tt/mbl-sheet/actions/workflows/android-ci.yml)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-SDK%2035-3DDC84?logo=android&logoColor=white)
